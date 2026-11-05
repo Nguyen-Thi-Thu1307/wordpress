@@ -67,14 +67,10 @@ if (in_array('freeship', array_map('strtolower', $applied_coupons))) {
     $is_freeship = true;
 }
 
-// Points discount in session (Tỷ lệ quy đổi: 1 Xu = 100₫)
+// Points discount in session
 $use_points = (bool) (WC()->session ? WC()->session->get('nbook_use_reward_points', false) : false);
 $nbook_points_balance = function_exists('nbook_get_points_balance') && is_user_logged_in() ? nbook_get_points_balance(get_current_user_id()) : 0;
-$subtotal_cart = (float) WC()->cart->get_subtotal();
-$max_discount_cap_vnd = (int) floor($subtotal_cart * 0.5);
-$max_points_from_cart = (int) floor($max_discount_cap_vnd / 100);
-$nbook_points_cap = min((int) $nbook_points_balance, $max_points_from_cart);
-$nbook_points_discount_vnd = $nbook_points_cap * 100;
+$nbook_points_cap = min($nbook_points_balance, (int) floor((float) WC()->cart->get_subtotal() * 0.5));
 
 // Chosen payment method
 $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
@@ -376,10 +372,10 @@ if (empty($chosen_gateway) || !isset($available_gateways[$chosen_gateway])) {
                                 <span class="nb-points-title">
                                     <i class="bi bi-coin text-warning me-1"></i> Dùng <strong>Biblio Xu</strong>
                                 </span>
-                                <span class="nb-points-desc">Dùng tối đa 50% đơn hàng: <strong><?php echo esc_html(number_format_i18n($nbook_points_cap)); ?> Xu</strong> (1 Xu = 100₫).</span>
+                                <span class="nb-points-desc">Dùng tối đa 50% đơn hàng: <strong><?php echo esc_html(number_format_i18n($nbook_points_cap)); ?> điểm</strong> (1 điểm = 1₫).</span>
                             </div>
                         </label>
-                        <span class="nb-points-value text-danger" id="nbPointsDiscountDisplay">-<?php echo wp_kses_post(wc_price($nbook_points_discount_vnd)); ?></span>
+                        <span class="nb-points-value text-danger">-<?php echo wp_kses_post(wc_price($nbook_points_cap)); ?></span>
                     </div>
                 </div>
 
@@ -527,10 +523,10 @@ if (empty($chosen_gateway) || !isset($available_gateways[$chosen_gateway])) {
                             </div>
                         <?php endif; ?>
 
-                        <?php if ($use_points && $nbook_points_discount_vnd > 0): ?>
+                        <?php if ($use_points): ?>
                             <div class="nb-cos-row points-row" id="nbCoPointsRow">
-                                <span class="nb-cos-label">Dùng Biblio Xu (<?php echo esc_html(number_format_i18n($nbook_points_cap)); ?> Xu):</span>
-                                <span class="nb-cos-val text-danger" id="nbCoPointsVal">-<?php echo wp_strip_all_tags(wc_price($nbook_points_discount_vnd)); ?></span>
+                                <span class="nb-cos-label">Dùng điểm thưởng:</span>
+                                <span class="nb-cos-val text-danger" id="nbCoPointsVal">-<?php echo wp_kses_post(wc_price($nbook_points_cap)); ?></span>
                             </div>
                         <?php endif; ?>
 

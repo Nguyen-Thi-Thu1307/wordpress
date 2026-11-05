@@ -7,12 +7,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Load Biblio's email service even when the plugin has not been activated in wp-admin.
-$nbook_email_plugin = WP_CONTENT_DIR . '/plugins/nbook-email-notifications/nbook-email-notifications.php';
-if (file_exists($nbook_email_plugin) && !defined('NBOOK_EMAIL_SETTINGS')) {
-    require_once $nbook_email_plugin;
-}
-
 // Tắt hoàn toàn nút cuộn lên đầu mặc định màu xanh của theme Astra (#ast-scroll-top)
 add_filter('astra_get_option_scroll-to-top-enable', '__return_false', 999);
 add_filter('astra_addon_scroll_top_enable', '__return_false', 999);
@@ -1462,6 +1456,16 @@ function nbook_enqueue_assets() {
         );
     }
 
+    if (!is_user_logged_in() && get_option('nbook_google_login_enabled', 1)) {
+        wp_enqueue_script(
+            'google-identity-services',
+            'https://accounts.google.com/gsi/client',
+            [],
+            null,
+            true
+        );
+    }
+
     // Localize AJAX search & authentication & logout
     wp_localize_script('nbook-scripts', 'nbook_ajax', [
         'ajax_url'     => admin_url('admin-ajax.php'),
@@ -1474,6 +1478,8 @@ function nbook_enqueue_assets() {
         'notifications_nonce' => wp_create_nonce('nbook_notifications'),
         'avatar_nonce'        => wp_create_nonce('nbook_avatar_upload_nonce'),
         'cancel_order_nonce'  => wp_create_nonce('nbook_cancel_order_nonce'),
+        'google_client_id'    => get_option('nbook_google_client_id', ''),
+        'google_login_enabled'=> get_option('nbook_google_login_enabled', 1) ? 1 : 0,
     ]);
 }
 
@@ -2643,6 +2649,7 @@ function nbook_loop_product_author_line() {
 add_action('wp_footer', 'nbook_render_auth_modal');
 function nbook_render_auth_modal() {
     $myaccount_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/tai-khoan/');
+    $google_login_enabled = get_option('nbook_google_login_enabled', 1);
     ?>
     <!-- BIBLIO POPUP AUTH MODAL -->
     <div class="nb-auth-overlay" id="nbAuthModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nbAuthHeading">
@@ -2675,7 +2682,7 @@ function nbook_render_auth_modal() {
                         <label for="nbLoginUser" class="nb-auth-label">Tên tài khoản hoặc Email <span class="text-danger">*</span></label>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-person-fill"></i>
-                            <input type="text" id="nbLoginUser" name="username" required class="nb-form-input" style="padding-left: 46px !important;" placeholder="Nhập email hoặc tên đăng nhập..." autocomplete="username" />
+                            <input type="text" id="nbLoginUser" name="username" required class="nb-form-input" placeholder="Nhập email hoặc tên đăng nhập..." autocomplete="username" />
                         </div>
                     </div>
 
@@ -2686,7 +2693,7 @@ function nbook_render_auth_modal() {
                         </div>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-lock-fill"></i>
-                            <input type="password" id="nbLoginPass" name="password" required class="nb-form-input" style="padding-left: 46px !important; padding-right: 42px !important;" placeholder="Nhập mật khẩu của bạn..." autocomplete="current-password" />
+                            <input type="password" id="nbLoginPass" name="password" required class="nb-form-input" placeholder="Nhập mật khẩu của bạn..." autocomplete="current-password" />
                             <button type="button" class="nb-eye-toggle" aria-label="Hiện/ẩn mật khẩu"><i class="bi bi-eye"></i></button>
                         </div>
                     </div>
@@ -2703,6 +2710,21 @@ function nbook_render_auth_modal() {
                         <span class="btn-spinner" style="display: none;"><i class="bi bi-arrow-repeat spin"></i> Đang đăng nhập...</span>
                     </button>
 
+                    <?php if ($google_login_enabled): ?>
+                    <div class="nb-social-auth-wrap">
+                        <div class="nb-auth-divider"><span>HOẶC</span></div>
+                        <button type="button" class="nb-btn-google-auth" id="nbGoogleLoginBtn" data-auth-mode="login">
+                            <svg class="nb-google-icon" width="18" height="18" viewBox="0 0 48 48">
+                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                            </svg>
+                            <span>Đăng nhập bằng Google</span>
+                        </button>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="nb-auth-footer-note">
                         Chưa có tài khoản Biblio? <a href="#register" class="nb-switch-auth-link" data-tab="register">Đăng ký thành viên mới</a>
                     </div>
@@ -2716,7 +2738,7 @@ function nbook_render_auth_modal() {
                         <label for="nbRegName" class="nb-auth-label">Họ và tên hiển thị <span class="text-danger">*</span></label>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-person-badge-fill"></i>
-                            <input type="text" id="nbRegName" name="name" required class="nb-form-input" style="padding-left: 46px !important;" placeholder="Ví dụ: Nguyễn Văn An" />
+                            <input type="text" id="nbRegName" name="name" required class="nb-form-input" placeholder="Ví dụ: Nguyễn Văn An" />
                         </div>
                     </div>
 
@@ -2724,7 +2746,7 @@ function nbook_render_auth_modal() {
                         <label for="nbRegEmail" class="nb-auth-label">Địa chỉ Email <span class="text-danger">*</span></label>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-envelope-fill"></i>
-                            <input type="email" id="nbRegEmail" name="email" required class="nb-form-input" style="padding-left: 46px !important;" placeholder="name@example.com" autocomplete="email" />
+                            <input type="email" id="nbRegEmail" name="email" required class="nb-form-input" placeholder="name@example.com" autocomplete="email" />
                         </div>
                     </div>
 
@@ -2732,7 +2754,7 @@ function nbook_render_auth_modal() {
                         <label for="nbRegPass" class="nb-auth-label">Mật khẩu (tối thiểu 6 ký tự) <span class="text-danger">*</span></label>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-shield-lock-fill"></i>
-                            <input type="password" id="nbRegPass" name="password" minlength="6" required class="nb-form-input" style="padding-left: 46px !important; padding-right: 42px !important;" placeholder="Tạo mật khẩu an toàn..." autocomplete="new-password" />
+                            <input type="password" id="nbRegPass" name="password" minlength="6" required class="nb-form-input" placeholder="Tạo mật khẩu an toàn..." autocomplete="new-password" />
                             <button type="button" class="nb-eye-toggle" aria-label="Hiện/ẩn mật khẩu"><i class="bi bi-eye"></i></button>
                         </div>
                     </div>
@@ -2741,7 +2763,7 @@ function nbook_render_auth_modal() {
                         <label for="nbRegPassConfirm" class="nb-auth-label">Xác nhận mật khẩu <span class="text-danger">*</span></label>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-check2-circle"></i>
-                            <input type="password" id="nbRegPassConfirm" name="confirm_password" minlength="6" required class="nb-form-input" style="padding-left: 46px !important; padding-right: 42px !important;" placeholder="Nhập lại mật khẩu..." autocomplete="new-password" />
+                            <input type="password" id="nbRegPassConfirm" name="confirm_password" minlength="6" required class="nb-form-input" placeholder="Nhập lại mật khẩu..." autocomplete="new-password" />
                             <button type="button" class="nb-eye-toggle" aria-label="Hiện/ẩn mật khẩu"><i class="bi bi-eye"></i></button>
                         </div>
                     </div>
@@ -2754,6 +2776,21 @@ function nbook_render_auth_modal() {
                         <span class="btn-text">ĐĂNG KÝ TÀI KHOẢN</span>
                         <span class="btn-spinner" style="display: none;"><i class="bi bi-arrow-repeat spin"></i> Đang khởi tạo...</span>
                     </button>
+
+                    <?php if ($google_login_enabled): ?>
+                    <div class="nb-social-auth-wrap">
+                        <div class="nb-auth-divider"><span>HOẶC</span></div>
+                        <button type="button" class="nb-btn-google-auth" id="nbGoogleRegBtn" data-auth-mode="register">
+                            <svg class="nb-google-icon" width="18" height="18" viewBox="0 0 48 48">
+                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                            </svg>
+                            <span>Tiếp tục bằng Google</span>
+                        </button>
+                    </div>
+                    <?php endif; ?>
 
                     <div class="nb-auth-footer-note">
                         Đã có tài khoản? <a href="#login" class="nb-switch-auth-link" data-tab="login">Đăng nhập tại đây</a>
@@ -2772,7 +2809,7 @@ function nbook_render_auth_modal() {
                         <label for="nbLostUser" class="nb-auth-label">Email hoặc Tên tài khoản <span class="text-danger">*</span></label>
                         <div class="nb-input-with-icon">
                             <i class="bi bi-envelope-at-fill"></i>
-                            <input type="text" id="nbLostUser" name="user_input" required class="nb-form-input" style="padding-left: 46px !important;" placeholder="Nhập email hoặc tên tài khoản..." />
+                            <input type="text" id="nbLostUser" name="user_input" required class="nb-form-input" placeholder="Nhập email hoặc tên tài khoản..." />
                         </div>
                     </div>
 
@@ -2913,6 +2950,181 @@ function nb_handle_ajax_lost_password() {
     wp_send_json_success([
         'message' => 'Liên kết đặt lại mật khẩu đã được gửi đến email ' . esc_html($user_data->user_email) . '. Vui lòng kiểm tra hộp thư đến (hoặc hòm thư rác / spam)!',
     ]);
+}
+
+// =========================================================================
+// GOOGLE SIGN-IN AJAX HANDLER & HOOKS
+// =========================================================================
+add_action('wp_ajax_nopriv_nb_google_login', 'nb_handle_google_login');
+add_action('wp_ajax_nb_google_login', 'nb_handle_google_login');
+function nb_handle_google_login() {
+    check_ajax_referer('nb_auth_nonce_action', 'security');
+
+    $credential   = isset($_POST['credential']) ? sanitize_text_field(wp_unslash($_POST['credential'])) : '';
+    $access_token = isset($_POST['access_token']) ? sanitize_text_field(wp_unslash($_POST['access_token'])) : '';
+    $email   = '';
+    $name    = '';
+    $sub     = '';
+    $picture = '';
+
+    if (!empty($credential)) {
+        // Case 1: Google ID Token (JWT) - Verify with Google API
+        $verify_url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($credential);
+        $response   = wp_remote_get($verify_url, ['timeout' => 8, 'sslverify' => true]);
+
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            $expected_client_id = trim((string) get_option('nbook_google_client_id', ''));
+            $email_verified = isset($data['email_verified']) && (
+                $data['email_verified'] === 'true' || $data['email_verified'] === true
+            );
+            $audience_matches = $expected_client_id !== '' && !empty($data['aud']) && hash_equals($expected_client_id, (string) $data['aud']);
+            if (!empty($data['email']) && $email_verified && $audience_matches) {
+                $email   = sanitize_email($data['email']);
+                $name    = sanitize_text_field($data['name'] ?? '');
+                $sub     = sanitize_text_field($data['sub'] ?? '');
+                $picture = esc_url_raw($data['picture'] ?? '');
+            }
+        }
+    } elseif (!empty($access_token)) {
+        // Case 2: OAuth2 Access Token
+        $userinfo_url = 'https://www.googleapis.com/oauth2/v3/userinfo';
+        $response = wp_remote_get($userinfo_url, [
+            'timeout'   => 8,
+            'sslverify' => true,
+            'headers'   => [
+                'Authorization' => 'Bearer ' . $access_token,
+            ],
+        ]);
+
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            if (!empty($data['email']) && (!isset($data['email_verified']) || $data['email_verified'] === true || $data['email_verified'] === 'true')) {
+                $email   = sanitize_email($data['email']);
+                $name    = sanitize_text_field($data['name'] ?? '');
+                $sub     = sanitize_text_field($data['sub'] ?? '');
+                $picture = esc_url_raw($data['picture'] ?? '');
+            }
+        }
+    }
+
+    if (empty($email) || !is_email($email)) {
+        wp_send_json_error([
+            'message' => 'Xác thực tài khoản Google không thành công. Vui lòng thử lại!',
+        ]);
+    }
+
+    // 1. Find existing user by Google sub OR by email
+    $user = null;
+    if (!empty($sub)) {
+        $users_by_sub = get_users([
+            'meta_key'   => '_nb_google_sub',
+            'meta_value' => $sub,
+            'number'     => 1,
+        ]);
+        if (!empty($users_by_sub)) {
+            $user = reset($users_by_sub);
+        }
+    }
+
+    if (!$user) {
+        $user = get_user_by('email', $email);
+    }
+
+    $is_new_user = false;
+
+    if ($user) {
+        $user_id = $user->ID;
+        // Update Google sub if missing
+        if (!empty($sub)) {
+            update_user_meta($user_id, '_nb_google_sub', $sub);
+        }
+        // Update avatar if user doesn't already have one
+        if (!empty($picture) && !get_user_meta($user_id, 'nbook_custom_avatar_url', true)) {
+            update_user_meta($user_id, 'nbook_custom_avatar_url', $picture);
+        }
+    } else {
+        // 2. Create new WordPress user
+        $is_new_user = true;
+        $username_base = sanitize_user(current(explode('@', $email)), true);
+        if (empty($username_base)) {
+            $username_base = 'google_user';
+        }
+        $username = $username_base;
+        $counter = 1;
+        while (username_exists($username)) {
+            $username = $username_base . '_' . $counter;
+            $counter++;
+        }
+
+        $random_password = wp_generate_password(24, true, true);
+        $user_id = wp_create_user($username, $random_password, $email);
+
+        if (is_wp_error($user_id)) {
+            wp_send_json_error([
+                'message' => 'Không thể tạo tài khoản từ Google: ' . $user_id->get_error_message(),
+            ]);
+        }
+
+        // Setup profile name & role
+        $name_parts = explode(' ', trim($name));
+        $first_name = array_shift($name_parts);
+        $last_last  = implode(' ', $name_parts);
+
+        wp_update_user([
+            'ID'           => $user_id,
+            'display_name' => $name ?: $username,
+            'first_name'   => $first_name ?: $name,
+            'last_name'    => $last_last,
+            'role'         => 'customer',
+        ]);
+
+        if (!empty($sub)) {
+            update_user_meta($user_id, '_nb_google_sub', $sub);
+        }
+        if (!empty($picture)) {
+            update_user_meta($user_id, 'nbook_custom_avatar_url', $picture);
+        }
+
+        $user = get_user_by('id', $user_id);
+    }
+
+    // 3. Log user in with auth cookie
+    wp_clear_auth_cookie();
+    wp_set_current_user($user_id);
+    wp_set_auth_cookie($user_id, true);
+    do_action('wp_login', $user->user_login, $user);
+
+    $welcome_msg = $is_new_user
+        ? 'Chào mừng bạn đến với Biblio! Tài khoản Google đã được kết nối (+100 Xu thành viên mới).'
+        : 'Đăng nhập Google thành công! Chào mừng ' . esc_html($user->display_name) . ' trở lại.';
+
+    wp_send_json_success([
+        'message'     => $welcome_msg,
+        'redirect'    => home_url('/'),
+        'is_new_user' => $is_new_user,
+    ]);
+}
+
+// Render Google button on WooCommerce standard login & register forms
+add_action('woocommerce_login_form_end', 'nbook_render_google_login_wc_form');
+add_action('woocommerce_register_form_end', 'nbook_render_google_login_wc_form');
+function nbook_render_google_login_wc_form() {
+    if (!get_option('nbook_google_login_enabled', 1)) return;
+    ?>
+    <div class="nb-social-auth-wrap nb-wc-social-wrap">
+        <div class="nb-auth-divider"><span>HOẶC</span></div>
+        <button type="button" class="nb-btn-google-auth" data-auth-mode="login">
+            <svg class="nb-google-icon" width="18" height="18" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Đăng nhập với Google</span>
+        </button>
+    </div>
+    <?php
 }
 
 // =========================================================================
@@ -3909,25 +4121,16 @@ function nbook_custom_shipping_rates($rates, $package) {
     return $new_rates;
 }
 
-// 9. Reward Points Discount Hook & AJAX (Tỷ lệ quy đổi: 1 Xu = 100₫)
+// 9. Reward Points Discount Hook & AJAX
 add_action('woocommerce_cart_calculate_fees', 'nbook_apply_reward_points_discount');
 function nbook_apply_reward_points_discount($cart) {
     if (is_admin() && !defined('DOING_AJAX')) return;
     if (WC()->session && WC()->session->get('nbook_use_reward_points', false) && is_user_logged_in()) {
         $balance = function_exists('nbook_get_points_balance') ? nbook_get_points_balance(get_current_user_id()) : 0;
-        
-        // Tỷ lệ quy đổi: 1 Xu = 100₫. Áp dụng tối đa 50% giá trị đơn hàng
-        $subtotal = (float) $cart->get_subtotal();
-        $max_discount_cap_vnd = (int) floor($subtotal * 0.5);
-        $max_points_from_cart = (int) floor($max_discount_cap_vnd / 100);
-        $points_to_use = min((int) $balance, $max_points_from_cart);
-        $discount_vnd = $points_to_use * 100;
-
-        WC()->session->set('nbook_points_to_use', $points_to_use);
-        WC()->session->set('nbook_points_discount_vnd', $discount_vnd);
-
-        if ($points_to_use > 0 && $discount_vnd > 0) {
-            $cart->add_fee('Biblio Xu (' . number_format_i18n($points_to_use) . ' Xu)', -$discount_vnd, false);
+        $max_points = min($balance, (int) floor($cart->get_subtotal() * 0.5));
+        WC()->session->set('nbook_points_to_use', $max_points);
+        if ($max_points > 0) {
+            $cart->add_fee('Biblio Xu (' . number_format_i18n($max_points) . ' điểm)', -$max_points, false);
         }
     }
 }
@@ -3941,13 +4144,9 @@ function nbook_ajax_toggle_reward_points() {
     }
     if (WC()->cart) {
         WC()->cart->calculate_totals();
-        $discount_vnd = WC()->session ? WC()->session->get('nbook_points_discount_vnd', 0) : 0;
-        $points_used = WC()->session ? WC()->session->get('nbook_points_to_use', 0) : 0;
         wp_send_json_success([
-            'enabled'      => $enable,
-            'cart_total'   => wc_price(WC()->cart->total),
-            'discount_vnd' => wc_price($discount_vnd),
-            'points_used'  => $points_used,
+            'enabled'    => $enable,
+            'cart_total' => wc_price(WC()->cart->total),
         ]);
     }
     wp_send_json_error();
@@ -5233,6 +5432,4 @@ function nbook_render_cancel_order_modal() {
     </div>
     <?php
 }
-
-
 

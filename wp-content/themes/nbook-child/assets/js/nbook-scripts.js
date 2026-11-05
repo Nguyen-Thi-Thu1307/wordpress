@@ -766,6 +766,200 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // =========================================================================
+    // GOOGLE SIGN-IN HANDLER (Google Identity Services & Demo Support)
+    // =========================================================================
+    var googleClientId = (window.nbook_ajax && window.nbook_ajax.google_client_id) ? window.nbook_ajax.google_client_id.trim() : '';
+    var googleLoginEnabled = (window.nbook_ajax && typeof window.nbook_ajax.google_login_enabled !== 'undefined') ? parseInt(window.nbook_ajax.google_login_enabled, 10) : 1;
+    var gisTokenClient = null;
+
+    function handleGoogleCredentialResponse(response) {
+        if (!response || !response.credential) {
+            showAlert('Không nhận được mã xác thực từ Google.', false);
+            return;
+        }
+        sendGoogleAuthToServer({ credential: response.credential });
+    }
+
+    function initGoogleIdentityServices() {
+        if (!googleLoginEnabled) return;
+        if (!window.google || !window.google.accounts) return;
+
+        if (googleClientId) {
+            try {
+                // Initialize Google One Tap / ID Token client
+                if (window.google.accounts.id) {
+                    window.google.accounts.id.initialize({
+                        client_id: googleClientId,
+                        callback: handleGoogleCredentialResponse,
+                        auto_select: false,
+                        cancel_on_tap_outside: true
+                    });
+                }
+
+                // Initialize Google OAuth2 Token Client for popup on button click
+                if (window.google.accounts.oauth2) {
+                    gisTokenClient = window.google.accounts.oauth2.initTokenClient({
+                        client_id: googleClientId,
+                        scope: 'email profile openid',
+                        callback: function(tokenResponse) {
+                            if (tokenResponse && tokenResponse.access_token) {
+                                sendGoogleAuthToServer({ access_token: tokenResponse.access_token });
+                            } else if (tokenResponse && tokenResponse.error) {
+                                showAlert('Google không cấp quyền đăng nhập. Vui lòng thử lại.', false);
+                            }
+                        }
+                    });
+                }
+            } catch (err) {
+                console.warn('Google Identity Services initialization error:', err);
+            }
+        }
+    }
+
+    // Try initializing when Google script is ready
+    if (window.google && window.google.accounts) {
+        initGoogleIdentityServices();
+    } else {
+        window.addEventListener('load', function() {
+            setTimeout(initGoogleIdentityServices, 500);
+        });
+    }
+
+    function sendGoogleAuthToServer(payload, triggerBtn) {
+        if (triggerBtn) {
+            triggerBtn.classList.add('loading');
+            triggerBtn.disabled = true;
+        }
+        showAlert('Đang xác thực thông tin tài khoản Google...', true);
+
+        var formData = new FormData();
+        formData.append('action', 'nb_google_login');
+        formData.append('security', authNonce);
+
+        if (payload.credential) {
+            formData.append('credential', payload.credential);
+        }
+        if (payload.access_token) {
+            formData.append('access_token', payload.access_token);
+        }
+        fetch(ajaxEndpoint, {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(res) {
+            if (triggerBtn) {
+                triggerBtn.classList.remove('loading');
+                triggerBtn.disabled = false;
+            }
+            if (res.success) {
+                showAlert(res.data && res.data.message ? res.data.message : 'Đăng nhập Google thành công! Đang chuyển hướng...', true);
+                setTimeout(function() {
+                    window.location.href = res.data && res.data.redirect ? res.data.redirect : homeUrl;
+                }, 1000);
+            } else {
+                showAlert(res.data && res.data.message ? res.data.message : 'Xác thực Google thất bại. Vui lòng thử lại!', false);
+            }
+        })
+        .catch(function(err) {
+            if (triggerBtn) {
+                triggerBtn.classList.remove('loading');
+                triggerBtn.disabled = false;
+            }
+            showAlert('Lỗi kết nối máy chủ khi đăng nhập Google. Vui lòng thử lại sau!', false);
+        });
+    }
+
+    // Helper modal when client ID is not configured yet
+    function renderGoogleSetupModal(triggerBtn) {
+        var existing = document.getElementById('nbGoogleSetupModal');
+        if (existing) existing.remove();
+
+        var modalHtml = 
+            '<div class="nb-google-modal-overlay" id="nbGoogleSetupModal">' +
+                '<div class="nb-google-modal-box">' +
+                    '<div class="nb-google-modal-header">' +
+                        '<svg width="24" height="24" viewBox="0 0 48 48">' +
+                            '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>' +
+                            '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>' +
+                            '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>' +
+                            '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>' +
+                        '</svg>' +
+                        '<h3>Đăng nhập bằng Google</h3>' +
+                    '</div>' +
+                    '<div class="nb-google-modal-body">' +
+                        '<p>Tính năng Google Sign-In đã được kết nối vào hệ thống Biblio.</p>' +
+                        '<p style="background: #f1f5f9; padding: 10px 14px; border-radius: 6px; font-size: 13px;">' +
+                            '💡 <strong>Dành cho Quản trị viên:</strong> Bạn có thể cấu hình <em>Google OAuth Client ID</em> từ Google Cloud Console tại <strong>Quản trị Biblio &rarr; Cài Đặt Chung</strong>.' +
+                        '</p>' +
+                        '<p>Bạn có muốn đăng nhập trải nghiệm ngay bằng tài khoản Google?</p>' +
+                    '</div>' +
+                    '<div class="nb-google-modal-actions">' +
+                        '<button type="button" class="nb-google-modal-btn secondary" id="nbCloseGoogleDemoBtn">Để sau</button>' +
+                        '<button type="button" class="nb-google-modal-btn primary" id="nbExecGoogleDemoBtn">' +
+                            '<i class="bi bi-box-arrow-in-right" style="margin-right: 6px;"></i> Trải nghiệm Thử nghiệm' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        var modal = document.getElementById('nbGoogleSetupModal');
+        setTimeout(function() { modal.classList.add('open'); }, 20);
+
+        document.getElementById('nbCloseGoogleDemoBtn').addEventListener('click', function() {
+            modal.classList.remove('open');
+            setTimeout(function() { modal.remove(); }, 250);
+        });
+
+        document.getElementById('nbExecGoogleDemoBtn').addEventListener('click', function() {
+            modal.classList.remove('open');
+            setTimeout(function() { modal.remove(); }, 250);
+            sendGoogleAuthToServer({
+                is_demo: true,
+                demo_email: 'google_user@biblio.vn',
+                demo_name: 'Nguyễn Văn Google'
+            }, triggerBtn);
+        });
+
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.classList.remove('open');
+                setTimeout(function() { modal.remove(); }, 250);
+            }
+        });
+    }
+
+    // Google Button Click Event Delegation
+    document.addEventListener('click', function(e) {
+        var googleBtn = e.target.closest('.nb-btn-google-auth');
+        if (!googleBtn) return;
+        e.preventDefault();
+
+        // 1. If Google Client ID is configured and GIS is available
+        if (googleClientId) {
+            if (gisTokenClient) {
+                gisTokenClient.requestAccessToken({ prompt: '' });
+                return;
+            } else if (window.google && window.google.accounts && window.google.accounts.id) {
+                window.google.accounts.id.prompt(function (notification) {
+                    if (notification && notification.isNotDisplayed && notification.isNotDisplayed()) {
+                        showAlert('Không thể mở cửa sổ đăng nhập Google. Vui lòng kiểm tra cấu hình Client ID.', false);
+                    }
+                });
+                return;
+            }
+        }
+
+        // A real Google Client ID is required; never create a local demo account from a public button.
+        if (!googleClientId) {
+            showAlert('Đăng nhập Google chưa được cấu hình. Vui lòng liên hệ quản trị viên.', false);
+        } else {
+            showAlert('Không thể tải dịch vụ Google. Vui lòng tải lại trang và thử lại.', false);
+        }
+    });
+
+    // =========================================================================
     // BIBLIO STOCK MANAGEMENT & NOTIFICATION (TÌNH TRẠNG TỒN KHO)
     // =========================================================================
 
@@ -2113,14 +2307,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     var pointsRow = document.getElementById('nbCoPointsRow');
                     if (pointsRow) pointsRow.style.display = isChecked ? 'flex' : 'none';
-                    if (res.success && res.data) {
-                        if (grandTotalEl && res.data.cart_total) {
-                            grandTotalEl.innerHTML = res.data.cart_total;
-                        }
-                        var coPointsVal = document.getElementById('nbCoPointsVal');
-                        if (coPointsVal && res.data.discount_vnd) {
-                            coPointsVal.innerHTML = '-' + res.data.discount_vnd;
-                        }
+                    if (res.success && res.data && grandTotalEl) {
+                        grandTotalEl.innerHTML = res.data.cart_total;
                     }
                 });
             });

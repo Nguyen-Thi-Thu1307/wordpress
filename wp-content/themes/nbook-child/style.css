@@ -5117,20 +5117,21 @@ body {
     z-index: 2;
 }
 
-.nb-form-input {
+.nb-auth-box .nb-form-input {
     width: 100% !important;
-    height: 44px !important;
+    height: 48px !important;
     background: #ffffff !important;
     border: 1.5px solid #cbd5e1 !important;
-    border-radius: 6px !important;
-    font-size: 13.5px !important;
+    border-radius: 8px !important;
+    padding: 10px 42px 10px 46px !important;
+    font-size: 14px !important;
     color: #1e293b !important;
     outline: none !important;
     box-sizing: border-box !important;
     transition: border-color 0.2s, box-shadow 0.2s !important;
 }
 
-.nb-form-input:focus {
+.nb-auth-box .nb-form-input:focus {
     border-color: #ee4d2d !important;
     box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.15) !important;
 }

@@ -1,0 +1,1 @@
+2026-11-05T13:04:49+00:00 ERROR Failed to handle the log: Attempt to get an instance of class 'Automattic\WooCommerce\Internal\DataStores\Orders\OrdersTableRefundDataStore', which doesn't exist.

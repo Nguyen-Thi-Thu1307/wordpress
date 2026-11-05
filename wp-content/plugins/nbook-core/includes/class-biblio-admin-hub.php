@@ -2648,6 +2648,34 @@ class Biblio_Admin_Hub {
                         </tr>
                     </table>
 
+                    <h2 style="color: #ee4d2d; font-size: 16px; border-bottom: 2px solid #fff5f2; padding-bottom: 8px; margin-top: 30px;">5. Tích Hợp Đăng Nhập Bằng Google (Google Sign-In)</h2>
+                    <div style="background: #f8fafc; border-left: 4px solid #4285f4; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; color: #334155; line-height: 1.6;">
+                        <strong><i class="dashicons dashicons-google" style="color: #4285f4; vertical-align: middle;"></i> Hướng dẫn kết nối Google Cloud:</strong><br>
+                        1. Truy cập <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: #0284c7; font-weight: 600;">Google Cloud Console &rarr; Credentials</a> và tạo <em>OAuth 2.0 Client ID</em> (loại <strong>Web application</strong>).<br>
+                        2. Thêm vào mục <strong>Authorized JavaScript origins</strong>: <code><?php echo esc_html(home_url()); ?></code><br>
+                        3. Thêm vào mục <strong>Authorized redirect URIs</strong>: <code><?php echo esc_html(home_url('/tai-khoan/')); ?></code><br>
+                        4. Dán <strong>Client ID</strong> nhận được vào ô bên dưới. Khách hàng sẽ có thể đăng nhập bằng tài khoản Google chỉ với 1 click!
+                    </div>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="nbook_google_login_enabled">Kích hoạt đăng nhập Google:</label></th>
+                            <td>
+                                <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600;">
+                                    <input type="checkbox" id="nbook_google_login_enabled" name="nbook_google_login_enabled" value="1" <?php checked(get_option('nbook_google_login_enabled', 1), 1); ?>>
+                                    Bật tính năng "Đăng nhập với Google" trên toàn bộ website
+                                </label>
+                                <p class="description">Hiển thị nút Đăng nhập với Google trong Modal Đăng nhập / Đăng ký và trang Tài khoản WooCommerce.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="nbook_google_client_id">Google OAuth Client ID:</label></th>
+                            <td>
+                                <input type="text" id="nbook_google_client_id" name="nbook_google_client_id" value="<?php echo esc_attr(get_option('nbook_google_client_id', '')); ?>" class="large-text" placeholder="Ví dụ: 1234567890-abcdefghij.apps.googleusercontent.com">
+                                <p class="description">Chuỗi Client ID định dạng <code>*.apps.googleusercontent.com</code> từ dự án Google Cloud của bạn.</p>
+                            </td>
+                        </tr>
+                    </table>
+
                     <p style="margin-top: 24px;">
                         <button type="submit" class="button biblio-btn-primary" style="padding: 8px 24px !important; font-size: 14px !important;">
                             LƯU TẤT CẢ CÀI ĐẶT BIBLIO
@@ -2683,7 +2711,11 @@ class Biblio_Admin_Hub {
             'nbook_points_review'        => 'absint',
             'nbook_points_checkin'       => 'absint',
             'nbook_points_expiry_months' => 'absint',
+            'nbook_google_client_id'     => 'sanitize_text_field',
         ];
+
+        // Handle checkboxes
+        update_option('nbook_google_login_enabled', !empty($_POST['nbook_google_login_enabled']) ? 1 : 0);
 
         foreach ($fields as $field => $sanitizer) {
             if (isset($_POST[$field])) {

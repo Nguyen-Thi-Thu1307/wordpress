@@ -739,7 +739,7 @@ class Biblio_Points_Voucher {
                         <div class="nb-phc-balance-val">
                             <span class="nb-phc-num" id="nbUserPointsDisplay"><?php echo esc_html(number_format_i18n($balance)); ?></span>
                             <span class="nb-phc-unit">Xu</span>
-                            <span class="nb-phc-vnd-equiv">≈ <?php echo esc_html(number_format_i18n($balance * 100)); ?>₫ (Giảm trực tiếp khi thanh toán)</span>
+                            <span class="nb-phc-vnd-equiv">≈ <?php echo esc_html(number_format_i18n($balance)); ?>₫ (1 Xu = 1₫ · Giảm trực tiếp khi thanh toán)</span>
                         </div>
                         <div class="nb-phc-expiry">
                             <i class="bi bi-clock-history"></i> Hiệu lực sử dụng: 12 tháng kể từ ngày tích lũy.
@@ -1216,6 +1216,10 @@ class Biblio_Points_Voucher {
                                 disp.textContent = data.data.balance_formatted;
                                 disp.classList.add('nb-points-bump');
                                 setTimeout(function() { disp.classList.remove('nb-points-bump'); }, 1200);
+                            }
+                            var equivEl = document.querySelector('.nb-phc-vnd-equiv');
+                            if (equivEl) {
+                                equivEl.textContent = '≈ ' + data.data.balance_formatted + '₫ (1 Xu = 1₫ · Giảm trực tiếp khi thanh toán)';
                             }
 
                             // 4. Cập nhật chuỗi streak
