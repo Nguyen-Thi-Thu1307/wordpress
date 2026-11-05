@@ -60,7 +60,76 @@ if (empty($rec_products)) {
             Không có cuốn sách nào trong giỏ hàng. Hãy khám phá hàng ngàn tựa sách mới cùng các chương trình khuyến mãi và ưu đãi độc quyền tại Biblio!
         </p>
 
-        <?php if (!$is_logged): ?>
+        <?php if ($is_logged && (current_user_can('manage_options') || current_user_can('manage_woocommerce') || current_user_can('manage_biblio_orders'))): 
+            $hub_metrics = class_exists('Biblio_Frontend_Admin_Hub') ? Biblio_Frontend_Admin_Hub::get_hub_metrics() : ['approval_needed_count' => 0, 'low_stock_count' => 0, 'rev_today' => 0];
+        ?>
+            <!-- ===============================================================
+                 KHU VỰC DÀNH CHO QUẢN TRỊ VIÊN KHI VÀO GIỎ HÀNG
+                 =============================================================== -->
+            <div class="nb-admin-cart-hub-box">
+                <div class="nb-achb-header">
+                    <span class="nb-achb-badge"><i class="bi bi-shield-lock-fill"></i> QUẢN TRỊ VIÊN BIBLIO</span>
+                    <h3 class="nb-achb-title">Bảng Tác Vụ Điều Hành Nhanh</h3>
+                    <p class="nb-achb-desc">Bạn đang đăng nhập với tư cách Quản trị viên. Dưới đây là các tác vụ cần thực hiện ngay trên sàn:</p>
+                </div>
+
+                <div class="nb-achb-grid">
+                    <div class="nb-achb-card">
+                        <div class="nb-achb-icon text-danger"><i class="bi bi-inbox-fill"></i></div>
+                        <div class="nb-achb-info">
+                            <span class="nb-achb-label">Đơn Hàng Cần Xử Lý</span>
+                            <strong class="nb-achb-val text-danger"><?php echo esc_html($hub_metrics['approval_needed_count']); ?> đơn</strong>
+                            <p class="nb-achb-sub">Đơn hàng mới đang chờ tiếp nhận &amp; chuẩn bị</p>
+                        </div>
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'orders', $account_url)); ?>" class="btn btn-sm btn-danger w-100">
+                            <i class="bi bi-check-circle-fill"></i> Duyệt Đơn Ngay
+                        </a>
+                    </div>
+
+                    <div class="nb-achb-card">
+                        <div class="nb-achb-icon text-warning"><i class="bi bi-book-half"></i></div>
+                        <div class="nb-achb-info">
+                            <span class="nb-achb-label">Kho Sách &amp; Tồn Kho</span>
+                            <strong class="nb-achb-val text-warning"><?php echo esc_html($hub_metrics['low_stock_count']); ?> cuốn cần bù</strong>
+                            <p class="nb-achb-sub">Thêm sách mới hoặc cập nhật giá &amp; số lượng</p>
+                        </div>
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'books', $account_url)); ?>" class="btn btn-sm btn-primary w-100">
+                            <i class="bi bi-plus-circle-fill"></i> Quản Lý Sách
+                        </a>
+                    </div>
+
+                    <div class="nb-achb-card">
+                        <div class="nb-achb-icon text-success"><i class="bi bi-newspaper"></i></div>
+                        <div class="nb-achb-info">
+                            <span class="nb-achb-label">Tin Tức &amp; Sự Kiện</span>
+                            <strong class="nb-achb-val text-success">Xuất bản bài</strong>
+                            <p class="nb-achb-sub">Đăng bài review sách, tin khuyến mãi &amp; sự kiện</p>
+                        </div>
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'posts', $account_url)); ?>" class="btn btn-sm btn-success w-100">
+                            <i class="bi bi-pencil-square"></i> Đăng Bài Mới
+                        </a>
+                    </div>
+
+                    <div class="nb-achb-card">
+                        <div class="nb-achb-icon text-info"><i class="bi bi-cash-stack"></i></div>
+                        <div class="nb-achb-info">
+                            <span class="nb-achb-label">Doanh Thu Hôm Nay</span>
+                            <strong class="nb-achb-val text-info"><?php echo wp_strip_all_tags(wc_price($hub_metrics['rev_today'])); ?></strong>
+                            <p class="nb-achb-sub">Xem báo cáo doanh số &amp; biểu đồ 7 ngày</p>
+                        </div>
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'overview', $account_url)); ?>" class="btn btn-sm btn-info text-white w-100">
+                            <i class="bi bi-bar-chart-line-fill"></i> Xem Báo Cáo
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nb-achb-footer-actions mt-3">
+                    <a href="<?php echo esc_url($account_url); ?>" class="btn btn-outline-primary">
+                        <i class="bi bi-speedometer2"></i> Vào Trung Tâm Quản Trị Frontend (/tai-khoan/)
+                    </a>
+                </div>
+            </div>
+        <?php elseif (!$is_logged): ?>
             <!-- ===============================================================
                  KHU VỰC DÀNH CHO KHÁCH CHƯA ĐĂNG NHẬP / ĐĂNG KÝ
                  =============================================================== -->

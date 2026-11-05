@@ -2,6 +2,19 @@
     position: relative;
     display: inline-flex;
     align-items: center;
+    padding: 6px 0;
+}
+
+/* Hover bridge between topbar trigger and dropdown */
+.nb-notification-wrap::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: -20px;
+    right: -20px;
+    height: 16px;
+    display: block;
+    z-index: 999;
 }
 
 .nb-notification-trigger,
@@ -35,7 +48,8 @@
     vertical-align: middle;
 }
 
-.nb-notification-trigger:hover {
+.nb-notification-trigger:hover,
+.nb-notification-wrap.is-open .nb-notification-trigger {
     opacity: 1 !important;
 }
 
@@ -78,10 +92,15 @@
     z-index: 2;
 }
 
+.nb-notification-count[hidden],
+.nb-notification-count.is-hidden {
+    display: none !important;
+}
+
 .nb-notification-dropdown {
     position: absolute;
     z-index: 1000;
-    top: 30px;
+    top: 32px;
     right: 0;
     width: 380px;
     background: #fff;
@@ -90,14 +109,57 @@
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
     overflow: hidden;
     color: #334155;
+    animation: nb-notif-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nb-notification-dropdown[hidden] {
+    display: none !important;
+}
+
+.nb-notification-wrap:hover .nb-notification-dropdown:not([hidden]),
+.nb-notification-wrap.is-open .nb-notification-dropdown:not([hidden]) {
+    display: block !important;
+}
+
+/* Arrow pointer pointing to bell */
+.nb-notification-dropdown::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 28px;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    transform: rotate(45deg);
+    border-left: 1px solid #e5e7eb;
+    border-top: 1px solid #e5e7eb;
+    z-index: 1;
+}
+
+@keyframes nb-notif-pop {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .nb-notification-heading {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
+    padding: 13px 18px;
     border-bottom: 1px solid #eef2f7;
+    background: #fafbfc;
+}
+
+.nb-notification-heading strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
 }
 
 .nb-mark-all-read {
@@ -105,7 +167,15 @@
     background: none;
     color: #ee4d2d;
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
+    padding: 0;
+    transition: opacity 0.2s ease, text-decoration 0.2s ease;
+}
+
+.nb-mark-all-read:hover {
+    opacity: 0.85;
+    text-decoration: underline;
 }
 
 .nb-notification-items {
@@ -167,10 +237,144 @@
     border-left: 3px solid #ee4d2d;
 }
 
+/* =========================================================================
+   EMPTY STATE NOTIFICATION (Shopee / Modern eCommerce style)
+   ========================================================================= */
+.nb-notif-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 36px 24px 32px;
+    background: #ffffff;
+}
+
+.nb-notif-empty-icon {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 2px dashed #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nb-notif-empty-state:hover .nb-notif-empty-icon {
+    transform: scale(1.08) rotate(-4deg);
+    border-color: #fca5a5;
+    background: #fff5f5;
+}
+
+.nb-notif-empty-icon i {
+    font-size: 30px;
+    color: #94a3b8;
+    line-height: 1;
+    transition: color 0.25s ease;
+}
+
+.nb-notif-empty-state:hover .nb-notif-empty-icon i {
+    color: #ee4d2d;
+}
+
+.nb-notif-empty-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 6px 0 !important;
+    letter-spacing: -0.2px;
+}
+
+.nb-notif-empty-desc {
+    font-size: 12.5px;
+    color: #64748b;
+    line-height: 1.55;
+    margin: 0 0 16px 0 !important;
+    max-width: 280px;
+}
+
+.nb-notif-empty-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #ee4d2d 0%, #d83d1e 100%);
+    color: #ffffff !important;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 6px;
+    text-decoration: none !important;
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 10px rgba(238, 77, 45, 0.25);
+    cursor: pointer;
+}
+
+.nb-notif-empty-btn:hover {
+    background: linear-gradient(135deg, #f05d3f 0%, #ee4d2d 100%);
+    color: #ffffff !important;
+    box-shadow: 0 5px 14px rgba(238, 77, 45, 0.35);
+    transform: translateY(-1px);
+}
+
+.nb-notif-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 34px 16px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.nb-notif-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #ee4d2d;
+    border-radius: 50%;
+    animation: nb-notif-spin 0.75s linear infinite;
+}
+
+@keyframes nb-notif-spin {
+    to { transform: rotate(360deg); }
+}
+
 .nb-notification-empty {
     padding: 25px 16px;
     text-align: center;
     color: #94a3b8;
+}
+
+/* Full page empty state */
+.nb-notif-empty-page {
+    padding: 60px 24px;
+    background: #ffffff;
+    border: 1px dashed #e2e8f0;
+    border-radius: 12px;
+    margin: 20px 0;
+}
+
+.nb-notif-empty-page .nb-notif-empty-icon {
+    width: 80px;
+    height: 80px;
+}
+
+.nb-notif-empty-page .nb-notif-empty-icon i {
+    font-size: 38px;
+}
+
+.nb-notif-empty-page .nb-notif-empty-title {
+    font-size: 18px;
+}
+
+.nb-notif-empty-page .nb-notif-empty-desc {
+    font-size: 14px;
+    max-width: 380px;
 }
 
 .nb-notification-all {

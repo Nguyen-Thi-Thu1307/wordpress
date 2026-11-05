@@ -15,6 +15,20 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Check if user has admin privileges
+$is_admin = class_exists('Biblio_Frontend_Admin_Hub') 
+    ? Biblio_Frontend_Admin_Hub::is_admin_user() 
+    : (current_user_can('manage_options') || current_user_can('manage_woocommerce') || current_user_can('manage_biblio_orders'));
+
+$is_viewing_as_customer = class_exists('Biblio_Frontend_Admin_Hub')
+    ? Biblio_Frontend_Admin_Hub::is_viewing_as_customer()
+    : (isset($_GET['view_as']) && $_GET['view_as'] === 'customer');
+
+if ($is_admin && !$is_viewing_as_customer) {
+    include get_stylesheet_directory() . '/woocommerce/myaccount/admin-hub-dashboard.php';
+    return;
+}
+
 $user = wp_get_current_user();
 $user_id = get_current_user_id();
 $display_name = $user ? $user->display_name : 'Quý khách';
@@ -94,6 +108,18 @@ $current_tier = $loyalty ? $loyalty['current_tier'] : [
 ];
 $next_tier = $loyalty ? $loyalty['next_tier'] : null;
 ?>
+
+<?php if ($is_admin && $is_viewing_as_customer): ?>
+    <div class="nb-admin-test-mode-banner">
+        <div class="nb-atmb-content">
+            <i class="bi bi-eye-fill"></i>
+            <span>Bạn đang xem giao diện ở <strong>Chế độ Khách hàng (Thử nghiệm)</strong>.</span>
+        </div>
+        <a href="<?php echo esc_url(add_query_arg('view_as', 'admin', wc_get_page_permalink('myaccount'))); ?>" class="nb-btn-back-to-admin">
+            <i class="bi bi-shield-lock-fill"></i> Quay lại Bảng Quản trị Admin Hub
+        </a>
+    </div>
+<?php endif; ?>
 
 <div class="nb-dashboard-wrap">
 

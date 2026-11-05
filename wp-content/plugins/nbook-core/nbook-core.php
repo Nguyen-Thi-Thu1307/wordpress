@@ -631,7 +631,16 @@ class Nbook_Core {
         <main class="nb-all-notifications"><div class="nb-container">
             <h1>Tất cả thông báo</h1>
             <div class="nb-notification-list">
-            <?php if (!$rows): ?><p>Chưa có thông báo nào.</p><?php endif; ?>
+            <?php if (!$rows): ?>
+                <div class="nb-notif-empty-state nb-notif-empty-page">
+                    <div class="nb-notif-empty-icon"><i class="bi bi-bell-slash"></i></div>
+                    <p class="nb-notif-empty-title">Chưa có thông báo nào</p>
+                    <p class="nb-notif-empty-desc">Bạn sẽ nhận được thông báo khi có cập nhật về đơn hàng, khuyến mãi hoặc hoạt động tài khoản.</p>
+                    <a href="<?php echo esc_url(function_exists('wc_get_page_permalink') ? (wc_get_page_permalink('shop') ?: home_url('/cua-hang/')) : home_url('/cua-hang/')); ?>" class="nb-notif-empty-btn">
+                        <i class="bi bi-compass"></i> Khám phá sách ngay
+                    </a>
+                </div>
+            <?php endif; ?>
             <?php foreach ($rows as $row): ?>
                 <a class="nb-notification-page-item <?php echo $row->is_read ? '' : 'is-unread'; ?>" href="<?php echo esc_url($row->url); ?>" data-notification-id="<?php echo esc_attr($row->id); ?>">
                     <strong><?php echo esc_html($row->title); ?></strong><span><?php echo esc_html($row->message); ?></span><time><?php echo esc_html(mysql2date('d/m/Y H:i', $row->created_at)); ?></time>

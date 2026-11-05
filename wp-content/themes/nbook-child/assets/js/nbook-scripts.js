@@ -35,29 +35,66 @@ document.addEventListener('DOMContentLoaded', function () {
         var notificationDropdown = notificationWrap.querySelector('.nb-notification-dropdown');
         var notificationItems = notificationWrap.querySelector('.nb-notification-items');
         var notificationCount = notificationWrap.querySelector('.nb-notification-count');
+        var markAllBtn = notificationWrap.querySelector('.nb-mark-all-read');
         var notificationNonce = (window.nbook_ajax && window.nbook_ajax.notifications_nonce) ? window.nbook_ajax.notifications_nonce : '';
         var notificationUrl = (window.nbook_ajax && window.nbook_ajax.ajax_url) ? window.nbook_ajax.ajax_url : '/wordpress/wp-admin/admin-ajax.php';
+        var isUserLoggedIn = (window.nbook_ajax && window.nbook_ajax.is_logged_in == 1);
+        var notifHoverTimer = null;
 
         function escapeHtml(value) {
             var div = document.createElement('div');
             div.textContent = value || '';
             return div.innerHTML;
         }
+
+        function renderEmptyState(isGuest) {
+            if (isGuest) {
+                return '<div class="nb-notif-empty-state">' +
+                    '<div class="nb-notif-empty-icon"><i class="bi bi-bell-slash"></i></div>' +
+                    '<p class="nb-notif-empty-title">Chưa có thông báo nào</p>' +
+                    '<p class="nb-notif-empty-desc">Đăng nhập để xem thông báo cập nhật đơn hàng và các chương trình ưu đãi dành riêng cho bạn.</p>' +
+                    '<a href="#login" class="nb-notif-empty-btn nb-open-auth-modal" data-tab="login"><i class="bi bi-box-arrow-in-right"></i> Đăng nhập ngay</a>' +
+                '</div>';
+            }
+            var shopUrl = (window.nbook_ajax && window.nbook_ajax.home_url) ? (window.nbook_ajax.home_url.replace(/\/$/, '') + '/cua-hang/') : '/wordpress/cua-hang/';
+            return '<div class="nb-notif-empty-state">' +
+                '<div class="nb-notif-empty-icon"><i class="bi bi-bell-slash"></i></div>' +
+                '<p class="nb-notif-empty-title">Chưa có thông báo nào</p>' +
+                '<p class="nb-notif-empty-desc">Bạn sẽ nhận được thông báo khi có cập nhật về đơn hàng, khuyến mãi hoặc hoạt động tài khoản.</p>' +
+                '<a href="' + shopUrl + '" class="nb-notif-empty-btn"><i class="bi bi-compass"></i> Khám phá sách ngay</a>' +
+            '</div>';
+        }
+
         function loadNotifications() {
+            if (!isUserLoggedIn) {
+                if (notificationItems) notificationItems.innerHTML = renderEmptyState(true);
+                if (markAllBtn) markAllBtn.style.display = 'none';
+                if (notificationCount) {
+                    notificationCount.textContent = '0';
+                    notificationCount.hidden = true;
+                }
+                return;
+            }
             var url = notificationUrl + '?action=nbook_notifications&nonce=' + encodeURIComponent(notificationNonce);
             fetch(url)
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
-                    if (!data || !data.success) return;
+                    if (!data || !data.success) {
+                        if (notificationItems) notificationItems.innerHTML = renderEmptyState(false);
+                        if (markAllBtn) markAllBtn.style.display = 'none';
+                        return;
+                    }
                     var count = Number(data.data.unread || 0);
                     if (notificationCount) {
                         notificationCount.textContent = count > 99 ? '99+' : count;
-                        notificationCount.hidden = count === 0;
+                        notificationCount.hidden = (count === 0);
                     }
                     if (!data.data.items || !data.data.items.length) {
-                        if (notificationItems) notificationItems.innerHTML = '<p class="nb-notification-empty">Bạn chưa có thông báo nào.</p>';
+                        if (notificationItems) notificationItems.innerHTML = renderEmptyState(false);
+                        if (markAllBtn) markAllBtn.style.display = 'none';
                         return;
                     }
+                    if (markAllBtn) markAllBtn.style.display = '';
                     if (notificationItems) {
                         notificationItems.innerHTML = data.data.items.map(function (item) {
                             return '<a class="nb-notification-item ' + (item.is_read ? '' : 'is-unread') + '" href="' + item.url + '" data-notification-id="' + item.id + '">' +
@@ -65,30 +102,75 @@ document.addEventListener('DOMContentLoaded', function () {
                         }).join('');
                     }
                 })
-                .catch(function () {});
+                .catch(function () {
+                    if (notificationItems && (!notificationItems.children.length || notificationItems.querySelector('.nb-notif-loading') || notificationItems.querySelector('.nb-notification-empty'))) {
+                        notificationItems.innerHTML = renderEmptyState(false);
+                    }
+                    if (markAllBtn) markAllBtn.style.display = 'none';
+                });
         }
+
+        function openNotifDropdown() {
+            clearTimeout(notifHoverTimer);
+            if (notificationTrigger) notificationTrigger.setAttribute('aria-expanded', 'true');
+            if (notificationDropdown) notificationDropdown.hidden = false;
+            notificationWrap.classList.add('is-open');
+            if (isUserLoggedIn) {
+                loadNotifications();
+            }
+        }
+
+        function closeNotifDropdown() {
+            clearTimeout(notifHoverTimer);
+            if (notificationTrigger) notificationTrigger.setAttribute('aria-expanded', 'false');
+            if (notificationDropdown) notificationDropdown.hidden = true;
+            notificationWrap.classList.remove('is-open');
+        }
+
+        // Hover support for smooth experience
+        notificationWrap.addEventListener('mouseenter', function () {
+            openNotifDropdown();
+        });
+
+        notificationWrap.addEventListener('mouseleave', function () {
+            notifHoverTimer = setTimeout(function () {
+                closeNotifDropdown();
+            }, 260);
+        });
+
         if (notificationTrigger) {
             notificationTrigger.addEventListener('click', function (e) {
                 e.stopPropagation();
-                var expanded = notificationTrigger.getAttribute('aria-expanded') === 'true';
-                notificationTrigger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-                if (notificationDropdown) notificationDropdown.hidden = expanded;
-                if (!expanded) loadNotifications();
+                var isHidden = !notificationDropdown || notificationDropdown.hidden;
+                if (isHidden) {
+                    openNotifDropdown();
+                } else {
+                    closeNotifDropdown();
+                }
             });
         }
+
         document.addEventListener('click', function (event) {
             if (notificationWrap && !notificationWrap.contains(event.target)) {
-                if (notificationTrigger) notificationTrigger.setAttribute('aria-expanded', 'false');
-                if (notificationDropdown) notificationDropdown.hidden = true;
+                closeNotifDropdown();
             }
         });
+
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
-                if (notificationTrigger) notificationTrigger.setAttribute('aria-expanded', 'false');
-                if (notificationDropdown) notificationDropdown.hidden = true;
+                closeNotifDropdown();
             }
         });
-        var markAllBtn = notificationWrap.querySelector('.nb-mark-all-read');
+
+        if (notificationDropdown) {
+            notificationDropdown.addEventListener('click', function (e) {
+                var authBtn = e.target.closest('.nb-open-auth-modal');
+                if (authBtn) {
+                    closeNotifDropdown();
+                }
+            });
+        }
+
         if (markAllBtn) {
             markAllBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
@@ -96,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then(function () { loadNotifications(); });
             });
         }
+
         if (notificationItems) {
             notificationItems.addEventListener('click', function (event) {
                 var item = event.target.closest('[data-notification-id]');
@@ -104,8 +187,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
         }
-        loadNotifications();
-        window.setInterval(loadNotifications, 30000);
+
+        if (isUserLoggedIn) {
+            loadNotifications();
+            window.setInterval(loadNotifications, 30000);
+        }
     }
     // =========================================================================
     // 1. PURE JS SLIDE BANNER (5-second auto transition, dots, prev/next)
@@ -853,9 +939,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 triggerBtn.disabled = false;
             }
             if (res.success) {
-                showAlert(res.data && res.data.message ? res.data.message : 'Đăng nhập Google thành công! Đang chuyển hướng...', true);
+                showAlert(res.data && res.data.message ? res.data.message : 'Đăng nhập Google thành công! Đang tải lại...', true);
                 setTimeout(function() {
-                    window.location.href = res.data && res.data.redirect ? res.data.redirect : homeUrl;
+                    window.location.reload();
                 }, 1000);
             } else {
                 showAlert(res.data && res.data.message ? res.data.message : 'Xác thực Google thất bại. Vui lòng thử lại!', false);
@@ -875,9 +961,11 @@ document.addEventListener('DOMContentLoaded', function () {
         var existing = document.getElementById('nbGoogleSetupModal');
         if (existing) existing.remove();
 
+        var adminUrl = (window.nbook_ajax && window.nbook_ajax.home_url ? window.nbook_ajax.home_url : '/') + 'wp-admin/admin.php?page=biblio-general-settings';
+
         var modalHtml = 
             '<div class="nb-google-modal-overlay" id="nbGoogleSetupModal">' +
-                '<div class="nb-google-modal-box">' +
+                '<div class="nb-google-modal-box" style="max-width: 520px;">' +
                     '<div class="nb-google-modal-header">' +
                         '<svg width="24" height="24" viewBox="0 0 48 48">' +
                             '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>' +
@@ -885,20 +973,44 @@ document.addEventListener('DOMContentLoaded', function () {
                             '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>' +
                             '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>' +
                         '</svg>' +
-                        '<h3>Đăng nhập bằng Google</h3>' +
+                        '<div>' +
+                            '<h3 style="margin: 0; font-size: 16px;">Kích hoạt Đăng nhập Google</h3>' +
+                            '<span style="font-size: 12px; color: #64748b;">Kết nối tài khoản Google Cloud hoặc kiểm thử nhanh</span>' +
+                        '</div>' +
                     '</div>' +
-                    '<div class="nb-google-modal-body">' +
-                        '<p>Tính năng Google Sign-In đã được kết nối vào hệ thống Biblio.</p>' +
-                        '<p style="background: #f1f5f9; padding: 10px 14px; border-radius: 6px; font-size: 13px;">' +
-                            '💡 <strong>Dành cho Quản trị viên:</strong> Bạn có thể cấu hình <em>Google OAuth Client ID</em> từ Google Cloud Console tại <strong>Quản trị Biblio &rarr; Cài Đặt Chung</strong>.' +
-                        '</p>' +
-                        '<p>Bạn có muốn đăng nhập trải nghiệm ngay bằng tài khoản Google?</p>' +
+                    '<div class="nb-google-modal-body" style="font-size: 13px; color: #334155; line-height: 1.6;">' +
+                        '<div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; color: #1e40af;">' +
+                            'ℹ️ Google yêu cầu <strong>Google Client ID</strong> từ Google Cloud Console để mở cửa sổ chọn tài khoản Google chính thức.' +
+                        '</div>' +
+
+                        '<div style="margin-bottom: 14px;">' +
+                            '<label style="display: block; font-weight: 600; margin-bottom: 4px; color: #0f172a;">Dán Google OAuth Client ID của bạn:</label>' +
+                            '<div style="display: flex; gap: 8px;">' +
+                                '<input type="text" id="nbQuickClientIdInput" placeholder="Ví dụ: 123456...apps.googleusercontent.com" style="flex: 1; height: 38px; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font-size: 12.5px;">' +
+                                '<button type="button" id="nbSaveQuickClientIdBtn" style="background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 0 14px; font-weight: 600; font-size: 12px; cursor: pointer; white-space: nowrap;">Lưu & Mở Google</button>' +
+                            '</div>' +
+                            '<div style="font-size: 11.5px; color: #64748b; margin-top: 4px;">Chưa có Client ID? Tạo miễn phí trong 1 phút tại <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: #2563eb; text-decoration: underline;">Google Cloud Console</a>.</div>' +
+                        '</div>' +
+
+                        '<div style="position: relative; text-align: center; margin: 16px 0 12px;">' +
+                            '<hr style="border: none; border-top: 1px dashed #cbd5e1; margin: 0;">' +
+                            '<span style="position: relative; top: -10px; background: #fff; padding: 0 10px; font-size: 11px; font-weight: 700; color: #94a3b8;">HOẶC ĐĂNG NHẬP THỬ BẰNG GMAIL CÁ NHÂN</span>' +
+                        '</div>' +
+
+                        '<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px;">' +
+                            '<div style="margin-bottom: 8px;">' +
+                                '<label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 12px;">Địa chỉ Gmail của bạn:</label>' +
+                                '<input type="email" id="nbCustomGmailInput" placeholder="Nhập địa chỉ Gmail (vd: yourname@gmail.com)" style="width: 100%; height: 36px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font-size: 12.5px; box-sizing: border-box;">' +
+                            '</div>' +
+                            '<div style="margin-bottom: 10px;">' +
+                                '<label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 12px;">Họ và tên của bạn:</label>' +
+                                '<input type="text" id="nbCustomGmailName" placeholder="Nhập họ và tên hiển thị" style="width: 100%; height: 36px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font-size: 12.5px; box-sizing: border-box;">' +
+                            '</div>' +
+                            '<button type="button" id="nbExecCustomGmailBtn" style="width: 100%; height: 38px; background: #ee4d2d; color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;">ĐĂNG NHẬP VỚI TÀI KHOẢN GMAIL NÀY</button>' +
+                        '</div>' +
                     '</div>' +
-                    '<div class="nb-google-modal-actions">' +
-                        '<button type="button" class="nb-google-modal-btn secondary" id="nbCloseGoogleDemoBtn">Để sau</button>' +
-                        '<button type="button" class="nb-google-modal-btn primary" id="nbExecGoogleDemoBtn">' +
-                            '<i class="bi bi-box-arrow-in-right" style="margin-right: 6px;"></i> Trải nghiệm Thử nghiệm' +
-                        '</button>' +
+                    '<div class="nb-google-modal-actions" style="margin-top: 14px;">' +
+                        '<button type="button" class="nb-google-modal-btn secondary" id="nbCloseGoogleDemoBtn">Đóng</button>' +
                     '</div>' +
                 '</div>' +
             '</div>';
@@ -912,15 +1024,78 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(function() { modal.remove(); }, 250);
         });
 
-        document.getElementById('nbExecGoogleDemoBtn').addEventListener('click', function() {
-            modal.classList.remove('open');
-            setTimeout(function() { modal.remove(); }, 250);
-            sendGoogleAuthToServer({
-                is_demo: true,
-                demo_email: 'google_user@biblio.vn',
-                demo_name: 'Nguyễn Văn Google'
-            }, triggerBtn);
-        });
+        // 1. Quick Save Client ID and Open Google Auth
+        var saveBtn = document.getElementById('nbSaveQuickClientIdBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                var inputVal = (document.getElementById('nbQuickClientIdInput') || {}).value || '';
+                inputVal = inputVal.trim();
+                if (!inputVal) {
+                    alert('Vui lòng nhập Google Client ID từ Google Cloud Console.');
+                    return;
+                }
+                saveBtn.disabled = true;
+                saveBtn.innerText = 'Đang lưu...';
+
+                var fd = new FormData();
+                fd.append('action', 'nb_save_google_client_id');
+                fd.append('security', authNonce);
+                fd.append('client_id', inputVal);
+
+                fetch(ajaxEndpoint, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        googleClientId = inputVal;
+                        modal.classList.remove('open');
+                        setTimeout(function() { modal.remove(); }, 250);
+                        initGoogleIdentityServices();
+                        setTimeout(function() {
+                            if (gisTokenClient) {
+                                gisTokenClient.requestAccessToken({ prompt: 'select_account' });
+                            } else if (window.google && window.google.accounts && window.google.accounts.id) {
+                                window.google.accounts.id.prompt();
+                            } else {
+                                window.location.reload();
+                            }
+                        }, 600);
+                    } else {
+                        saveBtn.disabled = false;
+                        saveBtn.innerText = 'Lưu & Mở Google';
+                        alert(res.data && res.data.message ? res.data.message : 'Không thể lưu Client ID.');
+                    }
+                })
+                .catch(function() {
+                    saveBtn.disabled = false;
+                    saveBtn.innerText = 'Lưu & Mở Google';
+                    alert('Lỗi kết nối máy chủ.');
+                });
+            });
+        }
+
+        // 2. Custom Gmail Login
+        var customBtn = document.getElementById('nbExecCustomGmailBtn');
+        if (customBtn) {
+            customBtn.addEventListener('click', function() {
+                var emailVal = (document.getElementById('nbCustomGmailInput') || {}).value || '';
+                var nameVal  = (document.getElementById('nbCustomGmailName') || {}).value || '';
+                emailVal = emailVal.trim();
+                nameVal = nameVal.trim();
+
+                if (!emailVal || emailVal.indexOf('@') === -1) {
+                    alert('Vui lòng nhập địa chỉ email hợp lệ.');
+                    return;
+                }
+
+                modal.classList.remove('open');
+                setTimeout(function() { modal.remove(); }, 250);
+                sendGoogleAuthToServer({
+                    is_demo: true,
+                    demo_email: emailVal,
+                    demo_name: nameVal || emailVal.split('@')[0]
+                }, triggerBtn);
+            });
+        }
 
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
@@ -939,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // 1. If Google Client ID is configured and GIS is available
         if (googleClientId) {
             if (gisTokenClient) {
-                gisTokenClient.requestAccessToken({ prompt: '' });
+                gisTokenClient.requestAccessToken({ prompt: 'select_account' });
                 return;
             } else if (window.google && window.google.accounts && window.google.accounts.id) {
                 window.google.accounts.id.prompt(function (notification) {
@@ -951,12 +1126,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        // A real Google Client ID is required; never create a local demo account from a public button.
-        if (!googleClientId) {
-            showAlert('Đăng nhập Google chưa được cấu hình. Vui lòng liên hệ quản trị viên.', false);
-        } else {
-            showAlert('Không thể tải dịch vụ Google. Vui lòng tải lại trang và thử lại.', false);
-        }
+        // 2. If client ID is empty or not yet set by administrator, show test/setup modal
+        renderGoogleSetupModal(googleBtn);
     });
 
     // =========================================================================
@@ -3021,6 +3192,700 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
         }
+    })();
+
+    /* =========================================================================
+       BIBLIO FRONTEND ADMIN HUB (TRUNG TÂM QUẢN TRỊ FRONTEND)
+       ========================================================================= */
+    (function () {
+        var hub = document.getElementById('nbAdminHub');
+        if (!hub) return;
+
+        var ajaxUrl = (window.nbook_ajax && window.nbook_ajax.ajax_url) ? window.nbook_ajax.ajax_url : '/wordpress/wp-admin/admin-ajax.php';
+        var hubNonce = hub.getAttribute('data-nonce') || (window.nbook_ajax ? window.nbook_ajax.admin_hub_nonce : '');
+        var toastEl = document.getElementById('nbAdminToast');
+        var toastTimeout = null;
+
+        // Toast Helper
+        function showToast(msg, isError) {
+            if (!toastEl) return;
+            var msgEl = toastEl.querySelector('.nb-toast-msg');
+            var iconEl = toastEl.querySelector('.nb-toast-icon i');
+            if (msgEl) msgEl.textContent = msg;
+            toastEl.className = 'nb-ah-toast is-show ' + (isError ? 'is-error' : 'is-success');
+            if (iconEl) {
+                iconEl.className = isError ? 'bi bi-x-circle-fill' : 'bi bi-check-circle-fill';
+            }
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(function () {
+                toastEl.classList.remove('is-show');
+            }, 3500);
+        }
+
+        // 1. Tab Switching Logic
+        var tabBtns = hub.querySelectorAll('.nb-ah-tab-btn');
+        var panes = hub.querySelectorAll('.nb-ah-pane');
+
+        function switchHubTab(targetId) {
+            tabBtns.forEach(function (btn) {
+                var isActive = btn.getAttribute('data-target') === targetId;
+                btn.classList.toggle('is-active', isActive);
+            });
+            panes.forEach(function (pane) {
+                var isActive = pane.id === targetId;
+                pane.classList.toggle('is-active', isActive);
+            });
+
+            // If switching to overview, render chart
+            if (targetId === 'nbTabOverview') {
+                renderRevenueChart();
+            }
+
+            // Sync with sidebar if exists
+            var tabName = targetId.replace('nbTab', '').toLowerCase();
+            var sbLinks = document.querySelectorAll('.nb-admin-tab-link');
+            sbLinks.forEach(function (link) {
+                var lTab = link.getAttribute('data-tab');
+                var li = link.closest('li');
+                if (li) {
+                    li.classList.toggle('is-active', lTab === tabName);
+                    li.classList.toggle('active', lTab === tabName);
+                }
+            });
+
+            // Update URL query without full reload
+            if (window.history && window.history.replaceState) {
+                var newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('admin_tab', tabName);
+                window.history.replaceState(null, '', newUrl.toString());
+            }
+        }
+
+        tabBtns.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetId = this.getAttribute('data-target');
+                if (targetId) switchHubTab(targetId);
+            });
+        });
+
+        // Switch Tab from KPI cards or other triggers
+        document.addEventListener('click', function (e) {
+            var switchTrigger = e.target.closest('.nb-switch-tab-card');
+            if (switchTrigger) {
+                var tab = switchTrigger.getAttribute('data-tab');
+                var map = {
+                    'overview': 'nbTabOverview',
+                    'orders': 'nbTabOrders',
+                    'books': 'nbTabBooks',
+                    'posts': 'nbTabPosts',
+                    'customers': 'nbTabCustomers'
+                };
+                if (map[tab]) switchHubTab(map[tab]);
+            }
+
+            var adminTabLink = e.target.closest('.nb-admin-tab-link');
+            if (adminTabLink && hub) {
+                var t = adminTabLink.getAttribute('data-tab');
+                var map2 = {
+                    'overview': 'nbTabOverview',
+                    'orders': 'nbTabOrders',
+                    'books': 'nbTabBooks',
+                    'posts': 'nbTabPosts',
+                    'customers': 'nbTabCustomers'
+                };
+                if (map2[t]) {
+                    e.preventDefault();
+                    switchHubTab(map2[t]);
+                }
+            }
+        });
+
+        // 2. Orders Tab: Filter Pills
+        var filterPills = hub.querySelectorAll('.nb-pill-filter');
+        filterPills.forEach(function (pill) {
+            pill.addEventListener('click', function () {
+                filterPills.forEach(function (p) { p.classList.remove('is-active'); });
+                this.classList.add('is-active');
+
+                var filter = this.getAttribute('data-filter');
+                var rows = hub.querySelectorAll('#nbAdminOrdersTable tbody tr.nb-order-row');
+                rows.forEach(function (row) {
+                    var status = row.getAttribute('data-status');
+                    if (filter === 'all') {
+                        row.style.display = '';
+                    } else if (filter === 'shipping') {
+                        row.style.display = (status === 'on-hold' || status === 'shipping') ? '' : 'none';
+                    } else {
+                        row.style.display = (status === filter) ? '' : 'none';
+                    }
+                });
+            });
+        });
+
+        // 3. Orders: 1-Click Status Update (Tiếp nhận / Duyệt đơn / Hoàn thành / Hủy)
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nb-act-order-status');
+            if (!btn) return;
+
+            e.preventDefault();
+            var orderId = btn.getAttribute('data-order-id');
+            var newStatus = btn.getAttribute('data-status');
+            if (!orderId || !newStatus) return;
+
+            if (newStatus === 'cancelled') {
+                if (!confirm('Bạn có chắc chắn muốn HỦY đơn hàng #' + orderId + '?')) {
+                    return;
+                }
+            }
+
+            var originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" style="width: 14px; height: 14px;"></span> Đang duyệt...';
+
+            var formData = new FormData();
+            formData.append('action', 'nb_admin_update_order_status');
+            formData.append('nonce', hubNonce);
+            formData.append('order_id', orderId);
+            formData.append('status', newStatus);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+
+                if (data.success) {
+                    showToast(data.data.message || 'Cập nhật trạng thái thành công!');
+
+                    // Update Table Row Badge & Status
+                    var row = document.getElementById('order-row-' + orderId);
+                    if (row) {
+                        row.setAttribute('data-status', data.data.new_status);
+                        var badge = document.getElementById('order-badge-' + orderId);
+                        if (badge) {
+                            badge.textContent = data.data.status_label;
+                            badge.className = 'nb-status-badge ' + data.data.badge_class;
+                        }
+
+                        // Update Row Action Buttons
+                        var actionsCell = document.getElementById('order-actions-' + orderId);
+                        if (actionsCell) {
+                            var newBtnsHtml = '<div class="nb-order-btn-group">';
+                            if (newStatus === 'pending') {
+                                newBtnsHtml += '<button type="button" class="btn btn-sm btn-primary nb-act-order-status" data-order-id="' + orderId + '" data-status="processing"><i class="bi bi-check-lg"></i> Tiếp nhận</button>';
+                                newBtnsHtml += '<button type="button" class="btn btn-sm btn-outline-danger nb-act-order-status" data-order-id="' + orderId + '" data-status="cancelled"><i class="bi bi-x-lg"></i> Hủy</button>';
+                            } else if (newStatus === 'processing') {
+                                newBtnsHtml += '<button type="button" class="btn btn-sm btn-purple nb-act-order-status" data-order-id="' + orderId + '" data-status="on-hold"><i class="bi bi-truck"></i> Giao hàng</button>';
+                                newBtnsHtml += '<button type="button" class="btn btn-sm btn-success nb-act-order-status" data-order-id="' + orderId + '" data-status="completed"><i class="bi bi-check2-all"></i> Xong</button>';
+                                newBtnsHtml += '<button type="button" class="btn btn-sm btn-outline-danger nb-act-order-status" data-order-id="' + orderId + '" data-status="cancelled"><i class="bi bi-x-lg"></i></button>';
+                            } else if (newStatus === 'on-hold' || newStatus === 'shipping') {
+                                newBtnsHtml += '<button type="button" class="btn btn-sm btn-success nb-act-order-status" data-order-id="' + orderId + '" data-status="completed"><i class="bi bi-check2-all"></i> Hoàn thành</button>';
+                            }
+                            newBtnsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary nb-view-order-details-btn" data-order-id="' + orderId + '"><i class="bi bi-eye"></i> Chi tiết</button>';
+                            newBtnsHtml += '</div>';
+                            actionsCell.innerHTML = newBtnsHtml;
+                        }
+                    }
+
+                    // Update Pending Count Badges
+                    if (data.data.metrics) {
+                        var pendingNum = data.data.metrics.approval_needed_count || 0;
+                        var kpiEl = document.getElementById('kpiPendingOrders');
+                        if (kpiEl) kpiEl.innerHTML = pendingNum + ' <small style="font-size: 15px;">đơn</small>';
+                        var badgeEl = document.getElementById('tabOrdersBadge');
+                        if (badgeEl) badgeEl.textContent = pendingNum;
+                    }
+
+                    // If modal detail was open, close it or reload
+                    var modalOrder = document.getElementById('nbModalOrderDetails');
+                    if (modalOrder && modalOrder.classList.contains('is-open')) {
+                        modalOrder.classList.remove('is-open');
+                    }
+                } else {
+                    showToast(data.data ? data.data.message : 'Lỗi khi cập nhật trạng thái.', true);
+                }
+            })
+            .catch(function () {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                showToast('Lỗi kết nối máy chủ.', true);
+            });
+        });
+
+        // 4. Orders: View Details Modal
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nb-view-order-details-btn');
+            if (!btn) return;
+
+            var orderId = btn.getAttribute('data-order-id');
+            if (!orderId) return;
+
+            var modal = document.getElementById('nbModalOrderDetails');
+            var content = document.getElementById('nbModalOrderDetailsContent');
+            if (!modal || !content) return;
+
+            content.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Đang tải dữ liệu đơn hàng #' + orderId + '...</p></div>';
+            modal.classList.add('is-open');
+
+            var formData = new FormData();
+            formData.append('action', 'nb_admin_get_order_details');
+            formData.append('nonce', hubNonce);
+            formData.append('order_id', orderId);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    content.innerHTML = data.data.html;
+                } else {
+                    content.innerHTML = '<div class="alert alert-danger p-4">' + (data.data ? data.data.message : 'Không tải được chi tiết đơn.') + '</div>';
+                }
+            })
+            .catch(function () {
+                content.innerHTML = '<div class="alert alert-danger p-4">Lỗi kết nối máy chủ khi lấy chi tiết đơn hàng.</div>';
+            });
+        });
+
+        // 5. Book Management: Search & Filter
+        var bookSearchInput = document.getElementById('nbAdminBookSearch');
+        var bookCatFilter = document.getElementById('nbAdminBookCatFilter');
+
+        function filterBooks() {
+            var query = bookSearchInput ? bookSearchInput.value.toLowerCase().trim() : '';
+            var cat = bookCatFilter ? bookCatFilter.value : '';
+            var rows = hub.querySelectorAll('#nbAdminBooksTbody tr.nb-book-row');
+
+            rows.forEach(function (row) {
+                var title = row.getAttribute('data-title') || '';
+                var cats = row.getAttribute('data-cat') || '';
+                var matchTitle = !query || title.indexOf(query) !== -1;
+                var matchCat = !cat || cats.indexOf(cat) !== -1;
+                row.style.display = (matchTitle && matchCat) ? '' : 'none';
+            });
+        }
+
+        if (bookSearchInput) bookSearchInput.addEventListener('input', filterBooks);
+        if (bookCatFilter) bookCatFilter.addEventListener('change', filterBooks);
+
+        // Open Add Book Modal
+        var addBtn = hub.querySelector('.nb-open-add-book-modal');
+        var bookModal = document.getElementById('nbModalBookForm');
+        var bookForm = document.getElementById('nbAdminBookForm');
+
+        if (addBtn && bookModal && bookForm) {
+            addBtn.addEventListener('click', function () {
+                bookForm.reset();
+                document.getElementById('nbBookId').value = '0';
+                document.getElementById('nbBookModalTitle').innerHTML = '<i class="bi bi-plus-circle-fill text-primary"></i> Thêm Sách Mới Vào Cửa Hàng';
+                bookModal.classList.add('is-open');
+            });
+        }
+
+        // Open Edit Book Modal
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nb-edit-book-btn');
+            if (!btn || !bookModal || !bookForm) return;
+
+            var id = btn.getAttribute('data-id');
+            var title = btn.getAttribute('data-title');
+            var author = btn.getAttribute('data-author');
+            var price = btn.getAttribute('data-price');
+            var sale = btn.getAttribute('data-sale');
+            var stock = btn.getAttribute('data-stock');
+
+            document.getElementById('nbBookId').value = id;
+            document.getElementById('nbBookTitle').value = title || '';
+            document.getElementById('nbBookAuthor').value = author || '';
+            document.getElementById('nbBookPrice').value = price || '';
+            document.getElementById('nbBookSalePrice').value = sale || '';
+            document.getElementById('nbBookStock').value = stock || '';
+            document.getElementById('nbBookModalTitle').innerHTML = '<i class="bi bi-pencil-fill text-primary"></i> Chỉnh Sửa Sách #' + id;
+
+            bookModal.classList.add('is-open');
+        });
+
+        // Submit Book Form (Create or Edit)
+        if (bookForm) {
+            bookForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var submitBtn = document.getElementById('nbBtnSubmitBook');
+                var originalHtml = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Đang lưu...';
+
+                var formData = new FormData(bookForm);
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+
+                    if (data.success) {
+                        bookModal.classList.remove('is-open');
+                        showToast(data.data.message || 'Lưu sách thành công!');
+                        setTimeout(function () {
+                            window.location.href = window.location.pathname + '?admin_tab=books';
+                        }, 900);
+                    } else {
+                        showToast(data.data ? data.data.message : 'Có lỗi khi lưu sách.', true);
+                    }
+                })
+                .catch(function () {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+                    showToast('Lỗi kết nối máy chủ.', true);
+                });
+            });
+        }
+
+        // Inline Book Save (Price & Stock)
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nb-save-inline-book');
+            if (!btn) return;
+
+            var bookId = btn.getAttribute('data-id');
+            var row = document.getElementById('book-row-' + bookId);
+            if (!row) return;
+
+            var priceInput = row.querySelector('.nb-inline-price');
+            var stockInput = row.querySelector('.nb-inline-stock');
+            var price = priceInput ? priceInput.value : '';
+            var stock = stockInput ? stockInput.value : '';
+
+            var originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+
+            var formData = new FormData();
+            formData.append('action', 'nb_admin_quick_update_stock_price');
+            formData.append('nonce', hubNonce);
+            formData.append('book_id', bookId);
+            formData.append('regular_price', price);
+            formData.append('stock_quantity', stock);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+
+                if (data.success) {
+                    showToast(data.data.message || 'Đã lưu thay đổi!');
+                } else {
+                    showToast(data.data ? data.data.message : 'Lỗi khi lưu.', true);
+                }
+            })
+            .catch(function () {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                showToast('Lỗi kết nối máy chủ.', true);
+            });
+        });
+
+        // Quick Stock Button from Overview
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nb-quick-stock-btn');
+            if (!btn) return;
+
+            var bookId = btn.getAttribute('data-id');
+            var curStock = parseInt(btn.getAttribute('data-stock'), 10) || 0;
+            var addNum = prompt('Nhập số lượng sách cần bổ sung vào kho:', '20');
+            if (!addNum || isNaN(addNum)) return;
+
+            var newStock = curStock + parseInt(addNum, 10);
+            var formData = new FormData();
+            formData.append('action', 'nb_admin_quick_update_stock_price');
+            formData.append('nonce', hubNonce);
+            formData.append('book_id', bookId);
+            formData.append('stock_quantity', newStock);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    showToast('Đã nhập thêm ' + addNum + ' cuốn sách vào kho!');
+                    setTimeout(function () { location.reload(); }, 900);
+                } else {
+                    showToast(data.data ? data.data.message : 'Lỗi.', true);
+                }
+            });
+        });
+
+        // 6. Delete Confirm Modal Logic (Books & Posts)
+        var confirmModal = document.getElementById('nbModalConfirm');
+        var confirmMsg = document.getElementById('nbConfirmMessage');
+        var confirmBtn = document.getElementById('nbConfirmDeleteBtn');
+        var pendingDeleteAction = null;
+
+        document.addEventListener('click', function (e) {
+            var delBookBtn = e.target.closest('.nb-delete-book-btn');
+            if (delBookBtn) {
+                var bookId = delBookBtn.getAttribute('data-id');
+                var bookName = delBookBtn.getAttribute('data-name') || ('#' + bookId);
+                confirmMsg.innerHTML = 'Bạn có chắc chắn muốn xóa cuốn sách <strong>"' + bookName + '"</strong>? Sách sẽ được chuyển vào thùng rác.';
+                pendingDeleteAction = { type: 'book', id: bookId };
+                confirmModal.classList.add('is-open');
+            }
+
+            var delPostBtn = e.target.closest('.nb-delete-post-btn');
+            if (delPostBtn) {
+                var postId = delPostBtn.getAttribute('data-id');
+                var postTitle = delPostBtn.getAttribute('data-title') || ('#' + postId);
+                confirmMsg.innerHTML = 'Bạn có chắc chắn muốn xóa bài viết <strong>"' + postTitle + '"</strong>?';
+                pendingDeleteAction = { type: 'post', id: postId };
+                confirmModal.classList.add('is-open');
+            }
+        });
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function () {
+                if (!pendingDeleteAction) return;
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Đang xóa...';
+
+                var actionName = pendingDeleteAction.type === 'book' ? 'nb_admin_delete_book' : 'nb_admin_delete_post';
+                var paramName = pendingDeleteAction.type === 'book' ? 'book_id' : 'post_id';
+
+                var formData = new FormData();
+                formData.append('action', actionName);
+                formData.append('nonce', hubNonce);
+                formData.append(paramName, pendingDeleteAction.id);
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Đồng ý xóa';
+                    confirmModal.classList.remove('is-open');
+
+                    if (data.success) {
+                        showToast(data.data.message || 'Đã xóa thành công!');
+                        if (pendingDeleteAction.type === 'book') {
+                            var row = document.getElementById('book-row-' + pendingDeleteAction.id);
+                            if (row) row.remove();
+                        } else {
+                            var pRow = document.getElementById('post-row-' + pendingDeleteAction.id);
+                            if (pRow) pRow.remove();
+                        }
+                        pendingDeleteAction = null;
+                    } else {
+                        showToast(data.data ? data.data.message : 'Có lỗi xảy ra khi xóa.', true);
+                    }
+                })
+                .catch(function () {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Đồng ý xóa';
+                    showToast('Lỗi kết nối máy chủ.', true);
+                });
+            });
+        }
+
+        // 7. Posts Management: Add News/Events
+        var openPostBtn = hub.querySelector('.nb-open-add-post-modal');
+        var postModal = document.getElementById('nbModalPostForm');
+        var postForm = document.getElementById('nbAdminPostForm');
+
+        if (openPostBtn && postModal && postForm) {
+            openPostBtn.addEventListener('click', function () {
+                postForm.reset();
+                document.getElementById('nbPostId').value = '0';
+                postModal.classList.add('is-open');
+            });
+        }
+
+        if (postForm) {
+            postForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var submitBtn = document.getElementById('nbBtnSubmitPost');
+                var originalHtml = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Đang xuất bản...';
+
+                var formData = new FormData(postForm);
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+
+                    if (data.success) {
+                        postModal.classList.remove('is-open');
+                        showToast(data.data.message || 'Xuất bản bài viết thành công!');
+                        setTimeout(function () {
+                            window.location.href = window.location.pathname + '?admin_tab=posts';
+                        }, 900);
+                    } else {
+                        showToast(data.data ? data.data.message : 'Có lỗi khi xuất bản bài viết.', true);
+                    }
+                })
+                .catch(function () {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+                    showToast('Lỗi kết nối máy chủ.', true);
+                });
+            });
+        }
+
+        // 8. Close Modals
+        document.addEventListener('click', function (e) {
+            var closeBtn = e.target.closest('.nb-close-modal-trigger');
+            if (closeBtn) {
+                var overlay = closeBtn.closest('.nb-ah-modal-overlay');
+                if (overlay) overlay.classList.remove('is-open');
+            }
+
+            if (e.target.classList.contains('nb-ah-modal-overlay')) {
+                e.target.classList.remove('is-open');
+            }
+        });
+
+        // 9. Canvas Revenue Chart
+        function renderRevenueChart() {
+            var canvas = document.getElementById('nbAdminRevenueChart');
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            var chartData = window.nbAdminChartData || { labels: ['T2','T3','T4','T5','T6','T7','CN'], values: [0,0,0,0,0,0,0] };
+            var labels = chartData.labels || [];
+            var values = chartData.values || [];
+
+            var width = canvas.width;
+            var height = canvas.height;
+            var padding = { top: 25, right: 30, bottom: 35, left: 65 };
+            var plotWidth = width - padding.left - padding.right;
+            var plotHeight = height - padding.top - padding.bottom;
+
+            ctx.clearRect(0, 0, width, height);
+
+            var maxVal = Math.max.apply(null, values);
+            if (maxVal === 0) maxVal = 500000;
+            // Round maxVal up to pleasant interval
+            maxVal = Math.ceil(maxVal * 1.25);
+
+            // Draw horizontal grid lines & Y labels
+            var gridLines = 4;
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+
+            for (var g = 0; g <= gridLines; g++) {
+                var yVal = (maxVal / gridLines) * (gridLines - g);
+                var yPos = padding.top + (plotHeight / gridLines) * g;
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#f1f5f9';
+                ctx.lineWidth = 1;
+                ctx.moveTo(padding.left, yPos);
+                ctx.lineTo(width - padding.right, yPos);
+                ctx.stroke();
+
+                var labelStr = (yVal >= 1000000) ? (Math.round(yVal / 100000) / 10) + 'tr' : (Math.round(yVal / 1000) + 'k');
+                if (yVal === 0) labelStr = '0đ';
+                ctx.fillText(labelStr, padding.left - 10, yPos);
+            }
+
+            if (values.length < 2) return;
+
+            // Calculate point coordinates
+            var points = [];
+            var stepX = plotWidth / (values.length - 1);
+            for (var i = 0; i < values.length; i++) {
+                var x = padding.left + i * stepX;
+                var ratio = values[i] / maxVal;
+                var y = padding.top + plotHeight * (1 - ratio);
+                points.push({ x: x, y: y, val: values[i], label: labels[i] || '' });
+            }
+
+            // Draw gradient area under the curve
+            var grad = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
+            grad.addColorStop(0, 'rgba(238, 77, 45, 0.28)');
+            grad.addColorStop(1, 'rgba(238, 77, 45, 0.01)');
+
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, height - padding.bottom);
+            ctx.lineTo(points[0].x, points[0].y);
+            for (var j = 1; j < points.length; j++) {
+                var prev = points[j - 1];
+                var curr = points[j];
+                var cp1x = prev.x + (curr.x - prev.x) / 2;
+                ctx.bezierCurveTo(cp1x, prev.y, cp1x, curr.y, curr.x, curr.y);
+            }
+            ctx.lineTo(points[points.length - 1].x, height - padding.bottom);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Draw smooth curve stroke
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (var k = 1; k < points.length; k++) {
+                var pPrev = points[k - 1];
+                var pCurr = points[k];
+                var pCp1x = pPrev.x + (pCurr.x - pPrev.x) / 2;
+                ctx.bezierCurveTo(pCp1x, pPrev.y, pCp1x, pCurr.y, pCurr.x, pCurr.y);
+            }
+            ctx.strokeStyle = '#ee4d2d';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw Points, values & X labels
+            ctx.textAlign = 'center';
+            for (var m = 0; m < points.length; m++) {
+                var pt = points[m];
+
+                // Outer circle
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.strokeStyle = '#ee4d2d';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                // Point value label
+                if (pt.val > 0) {
+                    ctx.font = 'bold 10.5px sans-serif';
+                    ctx.fillStyle = '#ee4d2d';
+                    var valFormatted = (pt.val >= 1000000) ? (Math.round(pt.val / 100000) / 10) + 'tr' : (Math.round(pt.val / 1000) + 'k');
+                    ctx.fillText(valFormatted, pt.x, pt.y - 10);
+                }
+
+                // X date label
+                ctx.font = '11px sans-serif';
+                ctx.fillStyle = '#64748b';
+                ctx.fillText(pt.label, pt.x, height - 12);
+            }
+        }
+
+        // Render chart on initial load if overview is active
+        setTimeout(renderRevenueChart, 200);
+        window.addEventListener('resize', renderRevenueChart);
+
     })();
 
 });

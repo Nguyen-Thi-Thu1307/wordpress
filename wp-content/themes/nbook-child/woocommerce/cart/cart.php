@@ -44,6 +44,27 @@ if (empty($rec_products)) {
         </nav>
     </div>
 
+    <?php if (is_user_logged_in() && (current_user_can('manage_options') || current_user_can('manage_woocommerce') || current_user_can('manage_biblio_orders'))): 
+        $acc_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/tai-khoan/');
+        $pending_orders_count = (int) wc_orders_count('pending') + (int) wc_orders_count('processing');
+    ?>
+        <!-- Admin Smart Strip in Cart -->
+        <div class="nb-cart-admin-strip">
+            <div class="nb-cas-left">
+                <span class="nb-cas-badge"><i class="bi bi-shield-lock-fill"></i> Quản Trị Viên</span>
+                <span>Bạn đang xem giỏ hàng với quyền Admin. Hệ thống hiện có <strong class="text-danger"><?php echo esc_html($pending_orders_count); ?> đơn hàng</strong> cần tiếp nhận &amp; duyệt.</span>
+            </div>
+            <div class="nb-cas-right">
+                <a href="<?php echo esc_url(add_query_arg('admin_tab', 'orders', $acc_url)); ?>" class="nb-cas-btn nb-cas-btn-danger">
+                    <i class="bi bi-inbox-fill"></i> Duyệt Đơn Hàng Ngay
+                </a>
+                <a href="<?php echo esc_url(add_query_arg('admin_tab', 'overview', $acc_url)); ?>" class="nb-cas-btn nb-cas-btn-primary">
+                    <i class="bi bi-speedometer2"></i> Trung Tâm Quản Trị
+                </a>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <?php if (!is_user_logged_in()): 
         $acc_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/tai-khoan/');
     ?>

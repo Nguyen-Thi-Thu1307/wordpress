@@ -11,6 +11,164 @@ $user = wp_get_current_user();
 $display_name = $user ? $user->display_name : 'Quý khách';
 $user_id = get_current_user_id();
 
+// Check Admin Status & View Mode
+$is_admin = class_exists('Biblio_Frontend_Admin_Hub') 
+    ? Biblio_Frontend_Admin_Hub::is_admin_user() 
+    : (current_user_can('manage_options') || current_user_can('manage_woocommerce') || current_user_can('manage_biblio_orders'));
+
+$is_viewing_as_customer = class_exists('Biblio_Frontend_Admin_Hub')
+    ? Biblio_Frontend_Admin_Hub::is_viewing_as_customer()
+    : (isset($_GET['view_as']) && $_GET['view_as'] === 'customer');
+
+if ($is_admin && !$is_viewing_as_customer) {
+    $hub_metrics = Biblio_Frontend_Admin_Hub::get_hub_metrics();
+    $active_tab = isset($_GET['admin_tab']) ? sanitize_key($_GET['admin_tab']) : 'overview';
+    $account_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/tai-khoan/');
+    ?>
+    <nav class="woocommerce-MyAccount-navigation nb-admin-sidebar-nav" aria-label="Menu Quản Trị Biblio">
+        <!-- Profile Header -->
+        <div class="nb-account-sidebar-profile nb-admin-sb-profile">
+            <div class="nb-sidebar-avatar-wrap">
+                <div class="nb-sidebar-avatar">
+                    <?php echo get_avatar($user_id, 120, '', esc_attr($display_name)); ?>
+                </div>
+                <span class="nb-avatar-crown-icon" title="Quản trị viên"><i class="bi bi-patch-check-fill"></i></span>
+            </div>
+            <div class="nb-sidebar-info">
+                <h4 class="nb-sidebar-name" title="<?php echo esc_attr($display_name); ?>"><?php echo esc_html($display_name); ?></h4>
+                <div class="nb-sidebar-badges">
+                    <span class="nb-sidebar-tier-badge nb-badge-admin-role" style="border-color: #ee4d2d; color: #ee4d2d; background: #fff5f2;">
+                        <i class="bi bi-shield-lock-fill"></i>
+                        <span>Quản Trị Viên Biblio</span>
+                    </span>
+                </div>
+                <div class="nb-admin-email-tag small text-muted"><i class="bi bi-envelope"></i> <?php echo esc_html($user->user_email); ?></div>
+            </div>
+        </div>
+
+        <!-- Admin Quick Metric Strip -->
+        <div class="nb-sidebar-wallet-strip nb-admin-strip">
+            <a href="<?php echo esc_url(add_query_arg('admin_tab', 'overview', $account_url)); ?>" class="nb-sws-item nb-admin-tab-link" data-tab="overview">
+                <i class="bi bi-cash-stack text-danger"></i>
+                <div class="nb-sws-meta">
+                    <span class="nb-sws-val text-danger" style="font-size: 13px;"><?php echo wp_strip_all_tags(wc_price($hub_metrics['rev_today'])); ?></span>
+                    <span class="nb-sws-label">Hôm nay</span>
+                </div>
+            </a>
+            <div class="nb-sws-divider"></div>
+            <a href="<?php echo esc_url(add_query_arg('admin_tab', 'orders', $account_url)); ?>" class="nb-sws-item nb-admin-tab-link" data-tab="orders">
+                <i class="bi bi-bell-fill text-warning"></i>
+                <div class="nb-sws-meta">
+                    <span class="nb-sws-val text-warning"><?php echo esc_html($hub_metrics['approval_needed_count']); ?></span>
+                    <span class="nb-sws-label">Đơn cần duyệt</span>
+                </div>
+            </a>
+        </div>
+
+        <!-- Admin Navigation Groups -->
+        <div class="nb-sidebar-menu-groups">
+            <!-- Group 1: Quản Trị Nghiệp Vụ -->
+            <div class="nb-nav-group">
+                <div class="nb-nav-group-title">
+                    <span>TRUNG TÂM QUẢN TRỊ BIBLIO</span>
+                </div>
+                <ul class="nb-nav-group-list">
+                    <li class="<?php echo ($active_tab === 'overview') ? 'is-active active' : ''; ?>">
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'overview', $account_url)); ?>" class="nb-nav-link nb-admin-tab-link" data-tab="overview">
+                            <span class="nb-nav-icon-box" style="--icon-color: #3b82f6;">
+                                <i class="bi bi-bar-chart-line-fill"></i>
+                            </span>
+                            <span class="nb-nav-text">Báo Cáo & Doanh Thu</span>
+                        </a>
+                    </li>
+                    <li class="<?php echo ($active_tab === 'orders') ? 'is-active' : ''; ?>">
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'orders', $account_url)); ?>" class="nb-nav-link nb-admin-tab-link" data-tab="orders">
+                            <span class="nb-nav-icon-box" style="--icon-color: #ef4444;">
+                                <i class="bi bi-inbox-fill"></i>
+                            </span>
+                            <span class="nb-nav-text">Tiếp Nhận & Duyệt Đơn</span>
+                            <?php if ($hub_metrics['approval_needed_count'] > 0): ?>
+                                <span class="nb-nav-badge nb-badge-orange"><?php echo esc_html($hub_metrics['approval_needed_count']); ?> đơn</span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                    <li class="<?php echo ($active_tab === 'books') ? 'is-active' : ''; ?>">
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'books', $account_url)); ?>" class="nb-nav-link nb-admin-tab-link" data-tab="books">
+                            <span class="nb-nav-icon-box" style="--icon-color: #10b981;">
+                                <i class="bi bi-book-half"></i>
+                            </span>
+                            <span class="nb-nav-text">Quản Lý Sách & Kho</span>
+                        </a>
+                    </li>
+                    <li class="<?php echo ($active_tab === 'posts') ? 'is-active' : ''; ?>">
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'posts', $account_url)); ?>" class="nb-nav-link nb-admin-tab-link" data-tab="posts">
+                            <span class="nb-nav-icon-box" style="--icon-color: #8b5cf6;">
+                                <i class="bi bi-newspaper"></i>
+                            </span>
+                            <span class="nb-nav-text">Đăng Tin Tức - Sự Kiện</span>
+                        </a>
+                    </li>
+                    <li class="<?php echo ($active_tab === 'customers') ? 'is-active' : ''; ?>">
+                        <a href="<?php echo esc_url(add_query_arg('admin_tab', 'customers', $account_url)); ?>" class="nb-nav-link nb-admin-tab-link" data-tab="customers">
+                            <span class="nb-nav-icon-box" style="--icon-color: #06b6d4;">
+                                <i class="bi bi-people-fill"></i>
+                            </span>
+                            <span class="nb-nav-text">Quản Lý Khách Hàng</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Group 2: Cá Nhân & Chuyển Đổi Chế Độ -->
+            <div class="nb-nav-group nb-nav-group-system">
+                <div class="nb-nav-group-title">
+                    <span>HỆ THỐNG & CÁ NHÂN</span>
+                </div>
+                <ul class="nb-nav-group-list">
+                    <li>
+                        <a href="<?php echo esc_url(wc_get_account_endpoint_url('edit-account')); ?>" class="nb-nav-link">
+                            <span class="nb-nav-icon-box" style="--icon-color: #6366f1;">
+                                <i class="bi bi-person-bounding-box"></i>
+                            </span>
+                            <span class="nb-nav-text">Hồ Sơ & Mật Khẩu Admin</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="<?php echo esc_url(add_query_arg('view_as', 'customer', $account_url)); ?>" class="nb-nav-link">
+                            <span class="nb-nav-icon-box" style="--icon-color: #f59e0b;">
+                                <i class="bi bi-eye"></i>
+                            </span>
+                            <span class="nb-nav-text">Xem Chế Độ Khách Hàng</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="<?php echo esc_url(admin_url()); ?>" target="_blank" class="nb-nav-link">
+                            <span class="nb-nav-icon-box" style="--icon-color: #0284c7;">
+                                <i class="bi bi-speedometer2"></i>
+                            </span>
+                            <span class="nb-nav-text">Trang Quản Trị WP-Admin</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="<?php echo esc_url(wc_get_account_endpoint_url('customer-logout')); ?>" 
+                           class="nb-nav-link nb-logout-link nb-logout-trigger" 
+                           data-logout-url="<?php echo esc_url(wp_logout_url(home_url('/'))); ?>" 
+                           data-logout-nonce="<?php echo esc_attr(wp_create_nonce('log-out')); ?>">
+                            <span class="nb-nav-icon-box" style="--icon-color: #ef4444;">
+                                <i class="bi bi-box-arrow-right"></i>
+                            </span>
+                            <span class="nb-nav-text">Đăng Xuất Tài Khoản</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <?php
+    do_action('woocommerce_after_account_navigation');
+    return;
+}
+
 // Dynamic metrics
 $order_count = 0;
 if (function_exists('wc_get_customer_order_count')) {
@@ -186,6 +344,15 @@ do_action('woocommerce_before_account_navigation');
             </div>
         </a>
     </div>
+
+    <?php if ($is_admin && $is_viewing_as_customer): ?>
+        <div class="nb-admin-sb-switch-back">
+            <a href="<?php echo esc_url(add_query_arg('view_as', 'admin', function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/tai-khoan/'))); ?>" class="nb-btn-return-admin">
+                <i class="bi bi-shield-lock-fill"></i>
+                <span>Về Bảng Quản Trị Admin</span>
+            </a>
+        </div>
+    <?php endif; ?>
 
     <!-- Grouped Navigation Menu -->
     <div class="nb-sidebar-menu-groups">
