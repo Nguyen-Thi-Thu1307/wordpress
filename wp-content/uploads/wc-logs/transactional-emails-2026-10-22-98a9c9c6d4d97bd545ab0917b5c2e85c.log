@@ -1,0 +1,2 @@
+2026-10-22T19:26:45+00:00 WARNING Email "customer_new_account" for user #2 failed to send: Không thể khởi tạo hàm thư. CONTEXT: {"email_type":"customer_new_account","status":"failed","recipient":"nguyenthithu1358","user":2}
+2026-10-22T19:27:46+00:00 WARNING Email "customer_reset_password" for user #2 failed to send: Không thể khởi tạo hàm thư. CONTEXT: {"email_type":"customer_reset_password","status":"failed","recipient":"nguyenthithu1358","user":2}

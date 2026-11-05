@@ -1,0 +1,6 @@
+2026-10-30T17:05:34+00:00 WARNING Email "cancelled_order" for order #467 failed to send: Không thể khởi tạo hàm thư. CONTEXT: {"email_type":"cancelled_order","status":"failed","recipient":"admin","order":467}
+2026-10-30T17:05:34+00:00 NOTICE Email "customer_cancelled_order" for order #467 not sent: email type is disabled CONTEXT: {"email_type":"customer_cancelled_order","status":"disabled","recipient":"nguyenthuk66bkt.thneu","order":467}
+2026-10-30T17:08:43+00:00 WARNING Email "new_order" for order #467 failed to send: Không thể khởi tạo hàm thư. CONTEXT: {"email_type":"new_order","status":"failed","recipient":"admin","order":467}
+2026-10-30T17:08:46+00:00 WARNING Email "customer_processing_order" for order #467 failed to send: Không thể khởi tạo hàm thư. CONTEXT: {"email_type":"customer_processing_order","status":"failed","recipient":"nguyenthuk66bkt.thneu","order":467}
+2026-10-30T17:11:22+00:00 WARNING Email "cancelled_order" for order #467 failed to send: Không thể khởi tạo hàm thư. CONTEXT: {"email_type":"cancelled_order","status":"failed","recipient":"admin","order":467}
+2026-10-30T17:11:22+00:00 NOTICE Email "customer_cancelled_order" for order #467 not sent: email type is disabled CONTEXT: {"email_type":"customer_cancelled_order","status":"disabled","recipient":"nguyenthuk66bkt.thneu","order":467}

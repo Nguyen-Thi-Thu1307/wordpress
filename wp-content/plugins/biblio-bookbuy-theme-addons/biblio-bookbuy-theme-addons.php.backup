@@ -1,0 +1,1716 @@
+<?php
+/**
+ * Plugin Name: Biblio Theme Addons (Header & Footer UI)
+ * Description: Tái hiện 100% giao diện Header và Footer theo chuẩn nhận diện thương hiệu Biblio (Bao gồm thanh Topbar, thanh tìm kiếm, nút Giỏ hàng WooCommerce, thanh danh mục ghim cố định & nút Sale Sốc Xả Kho, và Footer 4 cột có form bản tin mascot ong).
+ * Version: 1.1.0
+ * Author: Nhóm 3 TMĐT NEU - Biblio
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+class Biblio_Theme_UI {
+
+    public function __construct() {
+        // Enqueue Google Fonts
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
+
+        // Replace Astra Header & Footer
+        add_action('wp', [$this, 'setup_header_footer_hooks']);
+
+        // WooCommerce AJAX Cart Fragment update
+        add_filter('woocommerce_add_to_cart_fragments', [$this, 'cart_fragment']);
+
+        // ===== SINGLE PRODUCT PAGE CUSTOMIZATION =====
+        // Add detailed info table before WC description tabs
+        add_action('woocommerce_single_product_summary', [$this, 'product_meta_details'], 25);
+        // Add trust badges after add-to-cart
+        add_action('woocommerce_single_product_summary', [$this, 'product_trust_badges'], 35);
+        // Related products section title
+        add_filter('woocommerce_product_related_posts_heading', function() {
+            return 'Sản Phẩm Cùng Loại';
+        });
+        // Change quantity of related products
+        add_filter('woocommerce_output_related_products_args', function($args) {
+            $args['posts_per_page'] = 5;
+            $args['columns'] = 5;
+            return $args;
+        });
+        // Single product styles
+        add_action('wp_head', [$this, 'single_product_styles']);
+        // Rename default WC tabs
+        add_filter('woocommerce_product_tabs', [$this, 'rename_product_tabs'], 98);
+    }
+
+    public function enqueue_assets() {
+        wp_enqueue_style(
+            'biblio-fonts',
+            'https://fonts.googleapis.com/css2?family=Margarine&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400;1,700&family=Pacifico&display=swap',
+            [],
+            null
+        );
+    }
+
+    public function setup_header_footer_hooks() {
+        // Remove default Astra header & builder
+        remove_action('astra_header', 'astra_header_markup');
+        if (class_exists('Astra_Builder_Header')) {
+            remove_action('astra_header', [Astra_Builder_Header::get_instance(), 'global_astra_header'], 0);
+        }
+        
+        // Remove default Astra footer & builder
+        remove_action('astra_footer', 'astra_footer_markup');
+        if (class_exists('Astra_Builder_Footer')) {
+            remove_action('astra_footer', [Astra_Builder_Footer::get_instance(), 'footer_markup'], 10);
+        }
+
+        // Add our custom Biblio header & footer
+        add_action('astra_header', [$this, 'render_header'], 10);
+        add_action('astra_footer', [$this, 'render_footer'], 10);
+    }
+
+    public function cart_fragment($fragments) {
+        $count = (function_exists('WC') && WC()->cart) ? WC()->cart->get_cart_contents_count() : 0;
+        $fragments['span.bb-cart-count-badge'] = '<span class="bb-cart-count-badge">(' . esc_html($count) . ')</span>';
+        return $fragments;
+    }
+
+    // =====================================================================
+    // SINGLE PRODUCT: Rename tabs
+    // =====================================================================
+    public function rename_product_tabs($tabs) {
+        if (isset($tabs['description'])) {
+            $tabs['description']['title'] = 'Giới Thiệu Sản Phẩm';
+            $tabs['description']['priority'] = 10;
+        }
+        if (isset($tabs['reviews'])) {
+            $tabs['reviews']['title'] = 'Nhận Xét Của Khách Hàng';
+            $tabs['reviews']['priority'] = 30;
+        }
+        if (isset($tabs['additional_information'])) {
+            unset($tabs['additional_information']); // we show our own detail table
+        }
+        return $tabs;
+    }
+
+    // =====================================================================
+    // SINGLE PRODUCT: Book detail info table
+    // =====================================================================
+    public function product_meta_details() {
+        global $product;
+        if (!$product || !is_a($product, 'WC_Product')) return;
+
+        $pid = $product->get_id();
+        $author      = get_post_meta($pid, '_biblio_author', true);
+        $translator  = get_post_meta($pid, '_biblio_translator', true);
+        $publisher   = get_post_meta($pid, '_biblio_publisher', true);
+        $distributor = get_post_meta($pid, '_biblio_distributor', true);
+        $size        = get_post_meta($pid, '_biblio_size', true);
+        $pages       = get_post_meta($pid, '_biblio_pages', true);
+        $weight      = get_post_meta($pid, '_biblio_weight', true);
+        $date        = get_post_meta($pid, '_biblio_date', true);
+        $tags        = get_post_meta($pid, '_biblio_tags', true);
+
+        // Only show if we have metadata
+        if (!$author && !$publisher) return;
+        ?>
+        <!-- BIBLIO BOOK AUTHOR / PRICE META (above add-to-cart) -->
+        <div class="biblio-book-author-line">
+            <?php if ($author): ?>
+            <span class="biblio-meta-author">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <strong><?php echo esc_html($author); ?></strong> <em style="color:#888;">(Tác giả)</em>
+            </span>
+            <?php endif; ?>
+            <?php if ($translator): ?>
+            <span class="biblio-meta-translator">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e87c00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <strong><?php echo esc_html($translator); ?></strong> <em style="color:#888;">(Dịch giả)</em>
+            </span>
+            <?php endif; ?>
+        </div>
+
+        <!-- THÔNG TIN CHI TIẾT TABLE -->
+        <div class="biblio-detail-info-wrap">
+            <h4 class="biblio-detail-info-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Thông Tin Chi Tiết
+            </h4>
+            <table class="biblio-detail-table">
+                <?php if ($publisher): ?>
+                <tr><th>Nhà xuất bản:</th><td><?php echo esc_html($publisher); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($date): ?>
+                <tr><th>Ngày xuất bản:</th><td><?php echo esc_html($date); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($distributor): ?>
+                <tr><th>Nhà phát hành:</th><td><?php echo esc_html($distributor); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($size): ?>
+                <tr><th>Kích thước:</th><td><?php echo esc_html($size); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($pages): ?>
+                <tr><th>Số trang:</th><td><?php echo esc_html($pages); ?> trang</td></tr>
+                <?php endif; ?>
+                <?php if ($weight): ?>
+                <tr><th>Trọng lượng:</th><td><?php echo esc_html($weight); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($tags): ?>
+                <tr><th>Tags:</th><td><?php echo esc_html($tags); ?></td></tr>
+                <?php endif; ?>
+            </table>
+        </div>
+        <?php
+    }
+
+    // =====================================================================
+    // SINGLE PRODUCT: Trust badges + store info
+    // =====================================================================
+    public function product_trust_badges() {
+        ?>
+        <div class="biblio-product-trust">
+            <p class="biblio-hotline">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e87c00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.61 4.4 2 2 0 0 1 3.58 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                Gọi đặt hàng: <a href="tel:02838207153" style="color:#e87c00;font-weight:700;">(028) 3820 7153</a> hoặc <a href="tel:0933109009" style="color:#e87c00;font-weight:700;">0933 109 009</a>
+            </p>
+            <div class="biblio-trust-box">
+                <strong style="color:#209440;">Thông tin &amp; Khuyến mãi</strong>
+                <ul>
+                    <li>✅ Đổi trả hàng trong vòng <strong>7 ngày</strong></li>
+                    <li>✅ Sử dụng mỗi <strong>3.000 Biblio Point</strong> để được giảm 10.000đ</li>
+                    <li>🚚 Freeship nội thành từ <strong>150.000đ</strong></li>
+                    <li>🚚 Freeship toàn quốc từ <strong>250.000đ</strong></li>
+                    <li>📦 Bọc sách miễn phí &amp; tặng bookmark xinh xắn</li>
+                </ul>
+            </div>
+            <div class="biblio-badge-row">
+                <span class="biblio-badge-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#209440" stroke="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Hàng chính hãng 100%
+                </span>
+                <span class="biblio-badge-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+                    Quà tặng kèm sách
+                </span>
+                <span class="biblio-badge-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                    Giao hàng nhanh toàn quốc
+                </span>
+            </div>
+        </div>
+        <?php
+    }
+
+    // =====================================================================
+    // SINGLE PRODUCT: CSS styles
+    // =====================================================================
+    public function single_product_styles() {
+        if (!is_product()) return;
+        ?>
+        <style>
+        /* === BIBLIO SINGLE PRODUCT LAYOUT === */
+        .woocommerce div.product {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            align-items: flex-start;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 20px 0;
+        }
+        .woocommerce div.product div.images {
+            flex: 0 0 300px;
+            width: 300px;
+            position: sticky;
+            top: 20px;
+        }
+        .woocommerce div.product div.images .woocommerce-product-gallery__image img {
+            border-radius: 8px;
+            border: 1px solid #e7e7e7;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+        }
+        .woocommerce div.product div.summary {
+            flex: 1 1 500px;
+            min-width: 0;
+        }
+        /* Product title */
+        .woocommerce div.product .product_title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #222;
+            line-height: 1.4;
+            margin-bottom: 10px;
+            font-family: 'Roboto', Arial, sans-serif;
+        }
+        /* Author lines */
+        .biblio-book-author-line {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .biblio-meta-author, .biblio-meta-translator {
+            font-size: 14px;
+            color: #e87c00;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        /* Price */
+        .woocommerce div.product p.price {
+            font-size: 26px !important;
+            font-weight: 900 !important;
+            color: #e02020 !important;
+            margin-bottom: 4px;
+        }
+        .woocommerce div.product p.price del {
+            font-size: 16px !important;
+            color: #999 !important;
+            font-weight: 400 !important;
+        }
+        .woocommerce div.product p.price ins {
+            text-decoration: none !important;
+        }
+        /* Availability/Stock */
+        .woocommerce div.product .stock {
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .woocommerce div.product .in-stock {
+            color: #209440 !important;
+            font-weight: 600;
+        }
+        /* Detail table */
+        .biblio-detail-info-wrap {
+            background: #f9f9f9;
+            border: 1px solid #e7e7e7;
+            border-radius: 6px;
+            padding: 14px 16px;
+            margin: 16px 0;
+        }
+        .biblio-detail-info-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #209440;
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .biblio-detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .biblio-detail-table tr {
+            border-bottom: 1px solid #eeeeee;
+        }
+        .biblio-detail-table tr:last-child { border-bottom: none; }
+        .biblio-detail-table th {
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            padding: 6px 12px 6px 0;
+            width: 140px;
+            white-space: nowrap;
+        }
+        .biblio-detail-table td {
+            color: #333;
+            padding: 6px 0;
+        }
+        /* Quantity & Add to cart */
+        .woocommerce div.product form.cart {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 16px 0;
+            flex-wrap: wrap;
+        }
+        .woocommerce div.product form.cart .qty {
+            width: 65px !important;
+            height: 44px;
+            border: 2px solid #209440;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 700;
+            text-align: center;
+            color: #333;
+        }
+        .woocommerce div.product form.cart .quantity {
+            display: flex;
+            align-items: center;
+        }
+        .woocommerce #respond input#submit,
+        .woocommerce a.button,
+        .woocommerce button.button,
+        .woocommerce input.button,
+        .woocommerce div.product form.cart .button {
+            background-color: #e02020 !important;
+            color: #fff !important;
+            border: 2px solid #e02020 !important;
+            border-radius: 4px !important;
+            padding: 12px 28px !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s !important;
+        }
+        .woocommerce div.product form.cart .button:hover {
+            background-color: #c01010 !important;
+            border-color: #c01010 !important;
+        }
+        /* Trust box */
+        .biblio-product-trust {
+            margin-top: 16px;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 12px;
+        }
+        .biblio-hotline {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .biblio-trust-box {
+            background: #fffbf0;
+            border: 1px solid #f0e0b0;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .biblio-trust-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0 0 0;
+        }
+        .biblio-trust-box ul li {
+            padding: 3px 0;
+            color: #444;
+        }
+        .biblio-badge-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .biblio-badge-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #209440;
+            background: #e8f5e9;
+            padding: 5px 10px;
+            border-radius: 20px;
+        }
+        /* Tabs section */
+        .woocommerce-tabs.wc-tabs-wrapper {
+            margin-top: 30px;
+            width: 100%;
+        }
+        .woocommerce-tabs ul.tabs {
+            padding: 0;
+            border-bottom: 2px solid #209440 !important;
+            margin-bottom: 0 !important;
+        }
+        .woocommerce-tabs ul.tabs li {
+            background: #f5f5f5 !important;
+            border: 1px solid #ddd !important;
+            border-bottom: none !important;
+            border-radius: 4px 4px 0 0 !important;
+        }
+        .woocommerce-tabs ul.tabs li.active {
+            background: #209440 !important;
+            border-color: #209440 !important;
+        }
+        .woocommerce-tabs ul.tabs li a {
+            color: #555 !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
+        .woocommerce-tabs ul.tabs li.active a {
+            color: #fff !important;
+        }
+        .woocommerce-tabs .panel {
+            padding: 20px !important;
+            border: 1px solid #e7e7e7 !important;
+            border-top: none !important;
+            border-radius: 0 0 6px 6px !important;
+            font-size: 14px;
+            line-height: 1.8;
+            color: #333;
+        }
+        .woocommerce-tabs .panel h3,
+        .woocommerce-tabs .panel h4 {
+            color: #209440;
+            font-size: 16px;
+            margin: 16px 0 8px;
+        }
+        .woocommerce-tabs .panel ul li {
+            padding: 2px 0;
+        }
+        /* Related products */
+        .related.products {
+            margin-top: 30px;
+        }
+        .related.products > h2 {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            color: #209440 !important;
+            border-bottom: 2px solid #209440;
+            padding-bottom: 8px;
+            margin-bottom: 16px !important;
+        }
+        .related.products ul.products li.product {
+            background: #fff;
+            border: 1px solid #e7e7e7;
+            border-radius: 6px;
+            padding: 12px;
+            transition: box-shadow 0.2s;
+        }
+        .related.products ul.products li.product:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border-color: #209440;
+        }
+        .related.products ul.products li.product .woocommerce-loop-product__title {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            color: #333 !important;
+            margin: 8px 0 4px !important;
+        }
+        .related.products ul.products li.product .price {
+            font-size: 14px !important;
+            color: #e02020 !important;
+            font-weight: 700 !important;
+        }
+        /* Shop product cards */
+        .woocommerce ul.products li.product:not(.product-category) {
+            background: #fff;
+            border: 1px solid #e7e7e7;
+            border-radius: 8px;
+            padding: 14px;
+            transition: all 0.25s;
+        }
+        .woocommerce ul.products li.product:not(.product-category):hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            border-color: #209440;
+            transform: translateY(-3px);
+        }
+        .woocommerce ul.products li.product .woocommerce-loop-product__title {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            color: #333 !important;
+            line-height: 1.4 !important;
+        }
+        .woocommerce ul.products li.product .price {
+            font-size: 15px !important;
+            color: #e02020 !important;
+            font-weight: 700 !important;
+        }
+        .woocommerce ul.products li.product a.button {
+            background: #209440 !important;
+            border-color: #209440 !important;
+            color: #fff !important;
+            font-size: 12px !important;
+            padding: 8px 14px !important;
+            border-radius: 4px !important;
+        }
+        /* Breadcrumb */
+        .woocommerce-breadcrumb {
+            font-size: 13px;
+            color: #888;
+            padding: 10px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .woocommerce-breadcrumb a { color: #209440; }
+        /* Archive / shop page */
+        .woocommerce .woocommerce-ordering select {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+        .woocommerce-result-count {
+            font-size: 13px;
+            color: #777;
+        }
+
+        @media (max-width: 768px) {
+            .woocommerce div.product div.images {
+                flex: 0 0 100% !important;
+                width: 100% !important;
+                position: static !important;
+            }
+            .woocommerce div.product div.summary {
+                flex: 0 0 100% !important;
+            }
+        }
+        </style>
+        <?php
+    }
+
+    public function render_header() {
+        $cart_count = (function_exists('WC') && WC()->cart) ? WC()->cart->get_cart_contents_count() : 0;
+        $cart_url = function_exists('wc_get_cart_url') ? wc_get_cart_url() : home_url('/gio-hang/');
+        $account_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/tai-khoan/');
+        $order_url = home_url('/don-hang/');
+        $news_url = home_url('/tin-tuc-su-kien/');
+        $utilities_url = home_url('/tien-ich/');
+        $contact_url = home_url('/lien-he/');
+        $promo_url = home_url('/khuyen-mai/');
+        $shop_url = home_url('/san-pham/');
+        $is_logged = is_user_logged_in();
+        $current_user = wp_get_current_user();
+        ?>
+        <!-- ================= BIBLIO BRAND HEADER ================= -->
+        <header id="biblio-header" class="bb-header-wrap">
+            
+            <!-- TIER 1: TOPBAR -->
+            <div class="bb-topbar">
+                <div class="bb-container bb-topbar-inner">
+                    <!-- Topbar Left -->
+                    <div class="bb-topbar-left">
+                        <a href="<?php echo esc_url($contact_url); ?>" class="bb-top-link">
+                            <span class="bb-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                            </span>
+                            <span>Trợ giúp</span>
+                        </a>
+                        <a href="<?php echo esc_url($news_url); ?>" class="bb-top-link">
+                            <span class="bb-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                                    <path d="M18 14h-8"></path>
+                                    <path d="M15 18h-5"></path>
+                                    <rect x="10" y="6" width="8" height="4" rx="1"></rect>
+                                </svg>
+                            </span>
+                            <span>Tin tức</span>
+                        </a>
+                        <a href="<?php echo esc_url($promo_url); ?>" class="bb-top-link">
+                            <span class="bb-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                                    <circle cx="7" cy="7" r="1.5"></circle>
+                                </svg>
+                            </span>
+                            <span>Khuyến mãi</span>
+                        </a>
+                    </div>
+
+                    <!-- Topbar Right -->
+                    <div class="bb-topbar-right">
+                        <a href="<?php echo esc_url($utilities_url); ?>" class="bb-top-link">
+                            <span class="bb-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 12 20 22 4 22 4 12"></polyline>
+                                    <rect x="2" y="7" width="20" height="5" rx="1"></rect>
+                                    <line x1="12" y1="22" x2="12" y2="7"></line>
+                                    <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
+                                    <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
+                                </svg>
+                            </span>
+                            <span>Ưu đãi & tiện ích</span>
+                        </a>
+                        <a href="<?php echo esc_url($order_url); ?>" class="bb-top-link">
+                            <span class="bb-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m21.12 6.4-9-5.18a2 2 0 0 0-2.24 0l-9 5.18A2 2 0 0 0 0 8.13v7.74a2 2 0 0 0 .88 1.73l9 5.18a2 2 0 0 0 2.24 0l9-5.18a2 2 0 0 0 .88-1.73V8.13a2 2 0 0 0-.88-1.73Z"></path>
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                </svg>
+                            </span>
+                            <span>Kiểm tra đơn hàng</span>
+                        </a>
+                        <?php if ($is_logged): ?>
+                            <a href="<?php echo esc_url($account_url); ?>" class="bb-top-link">
+                                <span class="bb-icon">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                </span>
+                                <span><?php echo esc_html($current_user->display_name); ?></span>
+                            </a>
+                            <a href="<?php echo esc_url(wp_logout_url(home_url())); ?>" class="bb-top-link">
+                                <span class="bb-icon">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                        <polyline points="16 17 21 12 16 7"></polyline>
+                                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                                    </svg>
+                                </span>
+                                <span>Đăng xuất</span>
+                            </a>
+                        <?php else: ?>
+                            <a href="<?php echo esc_url($account_url); ?>" class="bb-top-link">
+                                <span class="bb-icon">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                                        <polyline points="10 17 15 12 10 7"></polyline>
+                                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                                    </svg>
+                                </span>
+                                <span>Đăng nhập</span>
+                            </a>
+                            <a href="<?php echo esc_url($account_url); ?>" class="bb-top-link">
+                                <span class="bb-icon">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <line x1="19" y1="8" x2="19" y2="14"></line>
+                                        <line x1="22" y1="11" x2="16" y2="11"></line>
+                                    </svg>
+                                </span>
+                                <span>Đăng ký</span>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TIER 2: MAIN HEADER BAR -->
+            <div class="bb-main-bar">
+                <div class="bb-container bb-main-inner">
+                    <!-- Brand Logo: BIBLIO.VN -->
+                    <div class="bb-brand">
+                        <a href="<?php echo esc_url(home_url('/')); ?>" class="bb-logo-link">
+                            <span class="bb-logo-script">Biblio<span class="bb-logo-sub">.vn</span></span>
+                        </a>
+                    </div>
+
+                    <!-- Search Box -->
+                    <div class="bb-search-wrapper">
+                        <form role="search" method="get" action="<?php echo esc_url(home_url('/')); ?>" class="bb-search-form">
+                            <div class="bb-search-dropdown">
+                                <span>Tất cả</span>
+                                <span class="bb-caret">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                            </div>
+                            <input type="text" name="s" class="bb-search-input" placeholder="Bạn cần tìm gì?" value="<?php echo get_search_query(); ?>" />
+                            <input type="hidden" name="post_type" value="product" />
+                            <button type="submit" class="bb-search-btn" aria-label="Tìm kiếm">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f15c22" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Hotline & Shopping Cart Button -->
+                    <div class="bb-actions-right">
+                        <!-- Hotline -->
+                        <div class="bb-hotline-box">
+                            <div class="bb-hotline-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f15c22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                                </svg>
+                            </div>
+                            <div class="bb-hotline-text">
+                                <span class="bb-hotline-num">0933 109 009</span>
+                                <span class="bb-hotline-label">Hot line</span>
+                            </div>
+                        </div>
+
+                        <!-- Shopping Cart Button (Nút giỏ hàng trong thanh công cụ) -->
+                        <a href="<?php echo esc_url($cart_url); ?>" class="bb-cart-btn" title="Xem giỏ hàng">
+                            <div class="bb-cart-icon">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f15c22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="9" cy="21" r="1"></circle>
+                                    <circle cx="20" cy="21" r="1"></circle>
+                                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                </svg>
+                            </div>
+                            <div class="bb-cart-label">
+                                Giỏ hàng <span class="bb-cart-count-badge">(<?php echo esc_html($cart_count); ?>)</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TIER 3: CATEGORY & PROMOTION BAR -->
+            <div class="bb-nav-bar">
+                <div class="bb-container bb-nav-inner">
+                    <!-- Dropdown Category Menu Button (Tương tác trên các trang con) -->
+                    <div class="bb-cat-dropdown-trigger">
+                        <a href="<?php echo esc_url($shop_url); ?>" class="bb-cat-btn" style="text-decoration:none;">
+                            <span class="bb-hamburger">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                                </svg>
+                            </span>
+                            <span class="bb-cat-title">Danh mục sản phẩm</span>
+                            <span class="bb-cat-caret">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </span>
+                        </a>
+
+                        <?php if (!is_front_page()): ?>
+                        <!-- Dropdown Menu items chỉ hiển thị pop-up trên các trang con -->
+                        <div class="bb-cat-menu-dropdown">
+                            <a href="<?php echo esc_url(home_url('/danh-muc-san-pham/sach-ky-nang/')); ?>">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>
+                                </span>
+                                <span>Sách Kỹ Năng</span>
+                            </a>
+                            <a href="<?php echo esc_url(home_url('/danh-muc-san-pham/sach-kinh-te/')); ?>">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><line x1="12" y1="12" x2="12" y2="16"></line></svg>
+                                </span>
+                                <span>Sách Kinh Tế & Khởi Nghiệp</span>
+                            </a>
+                            <a href="<?php echo esc_url(home_url('/danh-muc-san-pham/sach-van-hoc/')); ?>">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                                </span>
+                                <span>Sách Văn Học Kinh Điển</span>
+                            </a>
+                            <a href="<?php echo esc_url(home_url('/danh-muc-san-pham/sach-ngoai-ngu/')); ?>">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                </span>
+                                <span>Sách Ngoại Ngữ & IELTS</span>
+                            </a>
+                            <a href="<?php echo esc_url(home_url('/danh-muc-san-pham/sach-giao-duc/')); ?>">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
+                                </span>
+                                <span>Sách Giáo Dục & Sách Giáo Trình</span>
+                            </a>
+                            <a href="<?php echo esc_url(home_url('/danh-muc-san-pham/sach-thieu-nhi/')); ?>">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                                </span>
+                                <span>Sách Thiếu Nhi</span>
+                            </a>
+                            <a href="<?php echo esc_url($shop_url); ?>" class="bb-view-all-cats">
+                                <span class="bb-menu-ic">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#209440" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                </span>
+                                <span>Xem Tất Cả Sản Phẩm</span>
+                            </a>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Middle / Right Promotions -->
+                    <div class="bb-nav-promos">
+                        <a href="<?php echo esc_url($shop_url); ?>" class="bb-promo-link">
+                            <span class="bb-promo-icon-badge">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>
+                            </span>
+                            <span>Giảm thêm 2%</span>
+                        </a>
+                        <a href="<?php echo esc_url($news_url); ?>" class="bb-promo-link">
+                            <span class="bb-promo-icon-hot">HOT</span>
+                            <span>Chương Trình Khuyến Mãi</span>
+                        </a>
+                        <a href="<?php echo esc_url($shop_url); ?>" class="bb-sale-btn-jittery">
+                            <button type="button" class="sale-xa-kho">Sale Sốc Xả Kho</button>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </header>
+
+        <style>
+            /* HIDE DEFAULT ASTRA HEADER & FOOTER */
+            #ast-desktop-header, 
+            #ast-mobile-header, 
+            .site-header, 
+            .ast-mobile-header-wrap,
+            .site-footer,
+            .ast-footer-builder-wrap {
+                display: none !important;
+            }
+
+            /* BIBLIO HEADER COMPONENT STYLES */
+            .bb-header-wrap {
+                font-family: 'Roboto', Arial, 'Helvetica Neue', Helvetica, sans-serif;
+                background: #fff;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+                border-bottom: 1px solid #e7e7e7;
+                position: sticky;
+                top: 0;
+                z-index: 99999;
+            }
+            .bb-container {
+                max-width: 1260px;
+                margin: 0 auto;
+                padding: 0 20px;
+            }
+            /* Topbar */
+            .bb-topbar {
+                background-color: #f5f5f5;
+                border-bottom: 1px solid #e7e7e7;
+                font-size: 12px;
+                color: #555555;
+            }
+            .bb-topbar-inner {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                height: 38px;
+            }
+            .bb-topbar-left, .bb-topbar-right {
+                display: flex;
+                align-items: center;
+            }
+            .bb-top-link {
+                color: #666666;
+                text-decoration: none;
+                margin-right: 22px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 12px;
+                transition: color 0.2s ease;
+            }
+            .bb-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 16px;
+                height: 16px;
+                color: #777777;
+            }
+            .bb-icon svg {
+                stroke: #666666;
+                transition: stroke 0.2s ease, transform 0.2s ease;
+            }
+            .bb-top-link:hover {
+                color: #f15c22;
+            }
+            .bb-top-link:hover .bb-icon svg {
+                stroke: #f15c22;
+                transform: translateY(-1px);
+            }
+            .bb-topbar-right .bb-top-link:last-child {
+                margin-right: 0;
+            }
+
+            /* Main Bar */
+            .bb-main-bar {
+                padding: 16px 0;
+                background: #ffffff;
+            }
+            .bb-main-inner {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 24px;
+            }
+            /* Brand Logo */
+            .bb-logo-script {
+                font-family: 'Pacifico', cursive, sans-serif;
+                font-size: 36px;
+                color: #f15c22;
+                letter-spacing: -0.5px;
+                text-decoration: none;
+                display: inline-block;
+            }
+            .bb-logo-sub {
+                color: #888888;
+                font-family: 'Roboto', sans-serif;
+                font-size: 20px;
+                font-weight: 300;
+            }
+
+            /* Search Wrapper */
+            .bb-search-wrapper {
+                flex: 1;
+                max-width: 560px;
+            }
+            .bb-search-form {
+                display: flex;
+                align-items: center;
+                border: 2px solid #f15c22;
+                border-radius: 4px;
+                background: #ffffff;
+                height: 42px;
+                overflow: hidden;
+            }
+            .bb-search-dropdown {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 0 12px;
+                background: #fbfbfb;
+                border-right: 1px solid #e0e0e0;
+                height: 100%;
+                font-size: 12px;
+                color: #555;
+                cursor: pointer;
+                user-select: none;
+            }
+            .bb-caret svg {
+                stroke: #888;
+                display: block;
+            }
+            .bb-search-input {
+                flex: 1;
+                border: none !important;
+                outline: none !important;
+                padding: 0 14px !important;
+                font-size: 13px !important;
+                color: #333 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+            .bb-search-btn {
+                background: transparent;
+                border: none;
+                padding: 0 16px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .bb-search-btn:hover svg {
+                transform: scale(1.1);
+            }
+
+            /* Right actions */
+            .bb-actions-right {
+                display: flex;
+                align-items: center;
+                gap: 28px;
+            }
+            .bb-hotline-box {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .bb-hotline-text {
+                display: flex;
+                flex-direction: column;
+                line-height: 1.1;
+            }
+            .bb-hotline-num {
+                font-size: 16px;
+                font-weight: 800;
+                color: #f15c22;
+                letter-spacing: 0.5px;
+            }
+            .bb-hotline-label {
+                font-size: 11px;
+                color: #666;
+            }
+            /* Cart Button */
+            .bb-cart-btn {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                text-decoration: none;
+                color: #333333;
+                padding: 8px 14px;
+                border-radius: 4px;
+                transition: background-color 0.2s;
+            }
+            .bb-cart-btn:hover {
+                background-color: #fff4ed;
+                color: #f15c22;
+            }
+            .bb-cart-label {
+                font-size: 13px;
+                font-weight: 700;
+                color: #333333;
+            }
+            .bb-cart-count-badge {
+                color: #f15c22;
+                font-weight: 800;
+            }
+
+            /* Nav & Promo Bar */
+            .bb-nav-bar {
+                background: #ffffff;
+                border-top: 1px solid #f2f2f2;
+                border-bottom: 1px solid #e7e7e7;
+            }
+            .bb-nav-inner {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                position: relative;
+                height: 44px;
+            }
+            /* Category Dropdown (Sub-pages) */
+            .bb-cat-dropdown-trigger {
+                position: relative;
+                height: 100%;
+                display: flex;
+                align-items: center;
+            }
+            .bb-cat-btn {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 0 18px;
+                height: 100%;
+                font-size: 13px;
+                font-weight: 700;
+                color: #333333;
+                border-left: 1px solid #eee;
+                border-right: 1px solid #eee;
+                cursor: pointer;
+            }
+            .bb-cat-btn:hover {
+                background: #fbfbfb;
+                color: #209440;
+            }
+            .bb-hamburger svg, .bb-cat-caret svg {
+                display: block;
+            }
+            .bb-cat-menu-dropdown {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 250px;
+                background: #ffffff;
+                border: 1px solid #e7e7e7;
+                border-top: 2px solid #209440;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.14);
+                z-index: 9999;
+                border-radius: 0 0 6px 6px;
+            }
+            .bb-cat-dropdown-trigger:hover .bb-cat-menu-dropdown {
+                display: block;
+            }
+            .bb-cat-menu-dropdown a {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 16px;
+                font-size: 13px;
+                color: #444444;
+                text-decoration: none;
+                border-bottom: 1px solid #f5f5f5;
+                transition: all 0.2s;
+            }
+            .bb-cat-menu-dropdown a:hover {
+                background-color: #e8f5e9;
+                color: #209440;
+                padding-left: 20px;
+            }
+            .bb-cat-menu-dropdown a.bb-view-all-cats {
+                font-weight: 700;
+                color: #209440;
+                background: #fbfbfb;
+            }
+
+            /* Promo links */
+            .bb-nav-promos {
+                display: flex;
+                align-items: center;
+                gap: 22px;
+            }
+            .bb-promo-link {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                text-decoration: none;
+                color: #333333;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            .bb-promo-link:hover {
+                color: #ea1c24;
+            }
+            .bb-promo-icon-badge {
+                background: #ea1c24;
+                color: #fff;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .bb-promo-icon-badge svg {
+                display: block;
+            }
+            .bb-promo-icon-hot {
+                background: #ea1c24;
+                color: #fff;
+                font-size: 9px;
+                font-weight: 800;
+                padding: 2px 5px;
+                border-radius: 3px;
+                letter-spacing: 0.5px;
+            }
+
+            /* Sale Button */
+            .bb-sale-btn-jittery {
+                text-decoration: none;
+            }
+            .bb-sale-btn-jittery button.sale-xa-kho {
+                background: #ea1c24 !important;
+                color: #fff !important;
+                border: 3px solid #fff !important;
+                border-radius: 50px !important;
+                font: 16px "Margarine", cursive, sans-serif !important;
+                padding: 6px 20px !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+                cursor: pointer !important;
+                outline: none !important;
+                animation: jittery 4s infinite !important;
+            }
+        </style>
+        <?php
+    }
+
+    public function render_footer() {
+        ?>
+        <!-- ================= BIBLIO BRAND FOOTER ================= -->
+        <footer id="biblio-footer" class="bb-footer-wrap">
+            
+            <!-- SECTION 1: MASCOT BEE NEWSLETTER BAR -->
+            <div class="bb-newsletter-bar">
+                <div class="bb-container bb-newsletter-inner">
+                    <!-- Mascot Bee SVG -->
+                    <div class="bb-mascot-bee">
+                        <svg width="68" height="68" viewBox="0 0 100 100" fill="none">
+                            <circle cx="50" cy="50" r="38" fill="#ffb703" stroke="#222" stroke-width="4"/>
+                            <!-- Bee stripes -->
+                            <path d="M22 45h56" stroke="#222" stroke-width="7" stroke-linecap="round"/>
+                            <path d="M26 60h48" stroke="#222" stroke-width="7" stroke-linecap="round"/>
+                            <!-- Eyes -->
+                            <circle cx="42" cy="36" r="4" fill="#222"/>
+                            <circle cx="58" cy="36" r="4" fill="#222"/>
+                            <!-- Antennae -->
+                            <path d="M42 16q-6 -10 -14 -4" stroke="#222" stroke-width="3" stroke-linecap="round"/>
+                            <path d="M58 16q6 -10 14 -4" stroke="#222" stroke-width="3" stroke-linecap="round"/>
+                            <!-- Envelope held -->
+                            <rect x="35" y="48" width="30" height="20" rx="3" fill="#ffffff" stroke="#222" stroke-width="2"/>
+                            <path d="M35 50l15 10 15 -10" stroke="#f15c22" stroke-width="2"/>
+                        </svg>
+                    </div>
+
+                    <!-- Newsletter Text -->
+                    <div class="bb-newsletter-text">
+                        <h3 class="bb-newsletter-title">Đăng ký nhận bản tin Biblio</h3>
+                        <p class="bb-newsletter-sub">Đừng bỏ lỡ những tin nhắn ưu đãi độc quyền dành riêng cho bạn</p>
+                    </div>
+
+                    <!-- Newsletter Inputs -->
+                    <div class="bb-newsletter-form">
+                        <input type="text" placeholder="Nhập tên của bạn" class="bb-nl-input" />
+                        <input type="email" placeholder="Nhập địa chỉ email của bạn" class="bb-nl-input" />
+                        <div class="bb-gender-btns">
+                            <button type="button" class="bb-btn-gender">NAM</button>
+                            <button type="button" class="bb-btn-gender">NỮ</button>
+                            <button type="button" class="bb-btn-gender">LGBT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: 4 MAIN COLUMNS -->
+            <div class="bb-footer-cols">
+                <div class="bb-container bb-cols-inner">
+                    <!-- Column 1 -->
+                    <div class="bb-col">
+                        <h4 class="bb-col-title">HỖ TRỢ KHÁCH HÀNG</h4>
+                        <ul class="bb-col-links">
+                            <li>Sản phẩm & Đơn hàng: <strong class="bb-col-highlight">0933 109 009</strong></li>
+                            <li>Kỹ thuật & Bảo hành: <strong class="bb-col-highlight">0989 439 988</strong></li>
+                            <li>Tổng đài CSKH: <strong>1800-BIBLIO</strong> (Miễn cước)</li>
+                            <li>Email: <a href="mailto:support@biblio.vn">support@biblio.vn</a> / <a href="mailto:cskh@biblio.vn">cskh@biblio.vn</a></li>
+                            <li>Trụ sở: Số 207 Giải Phóng, Bạch Mai, Hà Nội</li>
+                            <li>Chi nhánh: 9 Lý Văn Phức, P. Tân Định, TP.HCM</li>
+                            <li><a href="<?php echo esc_url(home_url('/lien-he/')); ?>">➔ Sơ đồ đường đi</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Column 2 -->
+                    <div class="bb-col">
+                        <h4 class="bb-col-title">TRỢ GIÚP</h4>
+                        <ul class="bb-col-links">
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Hướng dẫn mua hàng</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Phương thức thanh toán</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Phương thức vận chuyển</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Chính sách đổi - trả</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Chính sách bồi hoàn</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Câu hỏi thường gặp (FAQs)</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Column 3 -->
+                    <div class="bb-col">
+                        <h4 class="bb-col-title">TÀI KHOẢN CỦA BẠN</h4>
+                        <ul class="bb-col-links">
+                            <li><a href="<?php echo esc_url(home_url('/tai-khoan/')); ?>">Cập nhật tài khoản</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/gio-hang/')); ?>">Giỏ hàng</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tai-khoan/orders/')); ?>">Lịch sử giao dịch</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Sản phẩm yêu thích</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/don-hang/')); ?>">Kiểm tra đơn hàng</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Column 4 -->
+                    <div class="bb-col">
+                        <h4 class="bb-col-title">VỀ BIBLIO</h4>
+                        <ul class="bb-col-links">
+                            <li><a href="<?php echo esc_url(home_url('/gioi-thieu/')); ?>">Giới thiệu Biblio.vn</a></li>
+                            <li><a href="https://facebook.com" target="_blank" rel="noopener">Biblio trên Facebook</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/lien-he/')); ?>">Liên hệ Biblio</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/san-pham/')); ?>">Đặt hàng theo yêu cầu</a></li>
+                            <li><a href="<?php echo esc_url(home_url('/tien-ich/')); ?>">Tích lũy Biblio Xu & Thưởng</a></li>
+                            <li><a href="#">Đối tác xuất bản NEU</a></li>
+                            <li><a href="#">Cẩm nang độc giả</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: PAYMENT PARTNERS & SOCIAL -->
+            <div class="bb-footer-bottom">
+                <div class="bb-container bb-bottom-inner">
+                    <!-- Payments -->
+                    <div class="bb-payment-wrap">
+                        <span class="bb-label-sec">Chấp nhận thanh toán:</span>
+                        <div class="bb-payment-badges">
+                            <span class="bb-pay-badge bb-visa">VISA</span>
+                            <span class="bb-pay-badge bb-mc">MasterCard</span>
+                            <span class="bb-pay-badge bb-ib">INTERNET BANKING</span>
+                            <span class="bb-pay-badge bb-bb">Biblio</span>
+                            <span class="bb-pay-badge bb-jcb">JCB</span>
+                            <span class="bb-pay-badge bb-cod">TIỀN MẶT</span>
+                            <span class="bb-pay-badge bb-moca">moca</span>
+                        </div>
+                    </div>
+
+                    <!-- Socials -->
+                    <div class="bb-social-wrap">
+                        <span class="bb-label-sec">Làm bạn với Biblio:</span>
+                        <div class="bb-social-icons">
+                            <span class="bb-soc-icon bb-fb" title="Facebook">f</span>
+                            <span class="bb-soc-icon bb-zl" title="Zalo">Zalo</span>
+                            <span class="bb-soc-icon bb-ig" title="Instagram">IG</span>
+                            <span class="bb-soc-icon bb-pt" title="Pinterest">P</span>
+                            <span class="bb-soc-icon bb-tt" title="TikTok">TT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: E-COMMERCE PLATFORMS & MOIT BADGE -->
+            <div class="bb-footer-legal">
+                <div class="bb-container bb-legal-inner">
+                    <div class="bb-marketplaces">
+                        <span class="bb-mp-shopee">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ee4d2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                            Shopee <em>Mua trả góp</em>
+                        </span>
+                        <span class="bb-mp-lazada">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f146d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                            LAZADA.VN
+                        </span>
+                        <span class="bb-mp-tiki">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a94ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                            TIKI.VN <em>Mua trả góp</em>
+                        </span>
+                    </div>
+                    <div class="bb-moit-cert">
+                        <span class="bb-moit-badge">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 16 10"></polyline></svg>
+                            ĐÃ ĐĂNG KÝ VỚI BỘ CÔNG THƯƠNG
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FLOATING WIDGET: CHAT & BACK TO TOP -->
+            <div class="bb-floating-chat" title="Hỗ trợ trực tuyến Biblio">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <a href="#biblio-header" class="bb-floating-top" title="Lên đầu trang">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </a>
+            <div class="bb-floating-nl-pill" title="Đăng ký nhận ưu đãi Biblio">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                Đăng ký nhận bản tin từ Biblio
+            </div>
+
+        </footer>
+
+        <style>
+            /* BIBLIO FOOTER COMPONENT STYLES */
+            .bb-footer-wrap {
+                font-family: 'Roboto', Arial, 'Helvetica Neue', Helvetica, sans-serif;
+                background: #f8f8f8;
+                border-top: 1px solid #e0e0e0;
+                margin-top: 30px;
+                color: #444444;
+            }
+            /* Newsletter bar */
+            .bb-newsletter-bar {
+                background: #ffffff;
+                border-bottom: 1px solid #eaeaea;
+                padding: 16px 0;
+            }
+            .bb-newsletter-inner {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 20px;
+                flex-wrap: wrap;
+            }
+            .bb-mascot-bee {
+                flex-shrink: 0;
+            }
+            .bb-newsletter-text {
+                flex: 1;
+                min-width: 260px;
+            }
+            .bb-newsletter-title {
+                color: #f15c22;
+                font-size: 17px;
+                font-weight: 700;
+                margin: 0 0 4px 0;
+            }
+            .bb-newsletter-sub {
+                font-size: 12px;
+                color: #666;
+                margin: 0;
+            }
+            .bb-newsletter-form {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .bb-nl-input {
+                border: 1px solid #d5d5d5 !important;
+                border-radius: 3px !important;
+                padding: 7px 12px !important;
+                font-size: 12px !important;
+                outline: none !important;
+                background: #fff !important;
+                min-width: 170px;
+            }
+            .bb-gender-btns {
+                display: flex;
+                border-radius: 3px;
+                overflow: hidden;
+            }
+            .bb-btn-gender {
+                background: #f15c22;
+                color: #ffffff;
+                border: none;
+                padding: 8px 14px;
+                font-weight: 700;
+                font-size: 11px;
+                cursor: pointer;
+                border-right: 1px solid #ff7a45;
+                transition: background 0.2s;
+            }
+            .bb-btn-gender:last-child {
+                border-right: none;
+            }
+            .bb-btn-gender:hover {
+                background: #d84813;
+            }
+
+            /* 4 Columns */
+            .bb-footer-cols {
+                background: #ffffff;
+                padding: 28px 0;
+                border-bottom: 1px solid #e7e7e7;
+            }
+            .bb-cols-inner {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 24px;
+            }
+            .bb-col-title {
+                font-size: 13px;
+                font-weight: 800;
+                color: #222222;
+                text-transform: uppercase;
+                margin: 0 0 14px 0;
+                letter-spacing: 0.3px;
+            }
+            .bb-col-links {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                font-size: 12px;
+                line-height: 2;
+                color: #555555;
+            }
+            .bb-col-links a {
+                color: #555555;
+                text-decoration: none;
+                transition: color 0.2s;
+            }
+            .bb-col-links a:hover {
+                color: #f15c22;
+                text-decoration: underline;
+            }
+            .bb-col-highlight {
+                color: #222222;
+                font-weight: 700;
+            }
+
+            /* Bottom Payments & Social */
+            .bb-footer-bottom {
+                background: #fafafa;
+                padding: 16px 0;
+                border-bottom: 1px solid #eaeaea;
+                font-size: 12px;
+            }
+            .bb-bottom-inner {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+            .bb-payment-wrap, .bb-social-wrap {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .bb-label-sec {
+                font-weight: 600;
+                color: #444;
+            }
+            .bb-payment-badges {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            .bb-pay-badge {
+                font-size: 10px;
+                font-weight: 800;
+                padding: 3px 6px;
+                border-radius: 3px;
+                border: 1px solid #ddd;
+                background: #fff;
+                color: #333;
+                text-transform: uppercase;
+            }
+            .bb-visa { color: #1a1f71; }
+            .bb-mc { color: #eb001b; }
+            .bb-ib { color: #00796b; font-size: 9px; }
+            .bb-bb { color: #f15c22; font-family: 'Pacifico', cursive; }
+            .bb-jcb { color: #004481; }
+            .bb-moca { color: #2e7d32; }
+
+            .bb-social-icons {
+                display: flex;
+                gap: 6px;
+            }
+            .bb-soc-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 24px;
+                height: 24px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: bold;
+                color: #fff;
+                cursor: pointer;
+            }
+            .bb-fb { background: #3b5998; }
+            .bb-zl { background: #0088cc; font-size: 8px; }
+            .bb-ig { background: #e1306c; font-size: 9px; }
+            .bb-pt { background: #bd081c; }
+            .bb-tt { background: #000000; font-size: 9px; }
+
+            /* Legal / Marketplaces */
+            .bb-footer-legal {
+                background: #ffffff;
+                padding: 16px 0 25px 0;
+                font-size: 12px;
+            }
+            .bb-legal-inner {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+            .bb-marketplaces {
+                display: flex;
+                gap: 18px;
+                align-items: center;
+                font-weight: 700;
+            }
+            .bb-marketplaces span {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .bb-mp-shopee { color: #ee4d2d; }
+            .bb-mp-lazada { color: #0f146d; }
+            .bb-mp-tiki { color: #1a94ff; }
+            .bb-marketplaces em {
+                font-size: 10px;
+                font-weight: normal;
+                color: #777;
+                font-style: normal;
+            }
+            .bb-moit-badge {
+                border: 1px solid #2e7d32;
+                color: #2e7d32;
+                padding: 5px 12px;
+                border-radius: 4px;
+                font-weight: 700;
+                font-size: 11px;
+                display: inline-block;
+            }
+
+            /* Floating Widgets */
+            .bb-floating-chat {
+                position: fixed;
+                bottom: 25px;
+                left: 20px;
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                background: #f15c22;
+                color: #fff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 15px rgba(241, 92, 34, 0.4);
+                cursor: pointer;
+                z-index: 999;
+                transition: transform 0.2s;
+            }
+            .bb-floating-chat:hover {
+                transform: scale(1.1);
+            }
+            .bb-floating-top {
+                position: fixed;
+                bottom: 60px;
+                right: 20px;
+                width: 38px;
+                height: 38px;
+                background: #f15c22;
+                color: #fff;
+                border-radius: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-decoration: none;
+                z-index: 999;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                transition: background 0.2s;
+            }
+            .bb-floating-top:hover {
+                background: #d84813;
+            }
+            .bb-floating-nl-pill {
+                position: fixed;
+                bottom: 15px;
+                right: 20px;
+                background: #f15c22;
+                color: #fff;
+                padding: 7px 16px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(241, 92, 34, 0.3);
+                z-index: 998;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            /* WOOCOMMERCE PRODUCT CATEGORY SHOWCASE CARDS */
+            .woocommerce ul.products li.product-category {
+                background: #ffffff;
+                border: 1px solid #e7e7e7 !important;
+                border-radius: 8px !important;
+                padding: 14px !important;
+                text-align: center;
+                transition: all 0.25s ease-in-out;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            }
+            .woocommerce ul.products li.product-category:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+                border-color: #209440 !important;
+            }
+            .woocommerce ul.products li.product-category a {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                text-decoration: none;
+            }
+            .woocommerce ul.products li.product-category a img {
+                border-radius: 6px;
+                margin: 0 auto 12px auto;
+                width: 100%;
+                max-height: 220px;
+                object-fit: cover;
+                transition: transform 0.3s ease;
+            }
+            .woocommerce ul.products li.product-category:hover a img {
+                transform: scale(1.02);
+            }
+            .woocommerce ul.products li.product-category .woocommerce-loop-category__title {
+                font-size: 13.5px !important;
+                font-weight: 700 !important;
+                color: #209440 !important;
+                text-transform: uppercase;
+                margin: 6px 0 2px 0 !important;
+                line-height: 1.35 !important;
+                letter-spacing: 0.2px;
+            }
+            .woocommerce ul.products li.product-category mark.count {
+                display: block;
+                background: transparent !important;
+                color: #777777 !important;
+                font-size: 12px !important;
+                font-weight: 500 !important;
+                margin-top: 4px;
+            }
+        </style>
+        <?php
+    }
+}
+
+new Biblio_Theme_UI();
